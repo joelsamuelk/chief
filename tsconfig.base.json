@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@chief/theme": ["packages/theme/src/index.ts"],
+      "@chief/theme/*": ["packages/theme/src/*"],
+      "@chief/types": ["packages/types/src/index.ts"],
+      "@chief/types/*": ["packages/types/src/*"],
+      "@chief/data": ["packages/data/src/index.ts"],
+      "@chief/data/*": ["packages/data/src/*"],
+      "@chief/ui/web": ["packages/ui/src/web/index.ts"],
+      "@chief/ui/mobile": ["packages/ui/src/mobile/index.ts"]
+    }
+  }
+}

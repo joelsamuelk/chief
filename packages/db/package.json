@@ -1,0 +1,9 @@
+{
+  "name": "@chief/db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "echo 'Apply SQL in packages/db/seeds/0001_seed.sql using Supabase SQL editor or supabase db push.'"
+  }
+}

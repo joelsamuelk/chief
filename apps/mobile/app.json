@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Chief",
+    "slug": "chief",
+    "scheme": "chief",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#F5F6F8"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F6F8"
+      }
+    }
+  }
+}

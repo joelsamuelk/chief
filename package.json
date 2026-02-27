@@ -1,0 +1,17 @@
+{
+  "name": "chief",
+  "private": true,
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "preinstall": "node ./scripts/enforce-pnpm.cjs",
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:seed": "pnpm --filter @chief/db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.3",
+    "typescript": "^5.6.3"
+  }
+}
