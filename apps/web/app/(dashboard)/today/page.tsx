@@ -2,12 +2,27 @@
 
 import { useEvents, useTasks } from "@chief/data";
 import { Card, CategoryDot, ListRow, ProgressRing } from "@chief/ui/web";
+import { useMemo } from "react";
 import { formatTimeRange } from "../../../lib/format";
+
+function toLocalDayKey(input: string | Date) {
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function TodayPage() {
   const { data: events = [] } = useEvents();
   const { data: tasks = [] } = useTasks("today");
-  const focusScore = Math.min(100, 40 + tasks.length * 10 + events.length * 8);
+  const eventsToday = useMemo(() => {
+    const todayKey = toLocalDayKey(new Date());
+    if (!todayKey) return [];
+    return events.filter((event) => toLocalDayKey(event.start_at) === todayKey);
+  }, [events]);
+  const focusScore = Math.min(100, 40 + tasks.length * 10 + eventsToday.length * 8);
 
   return (
     <div className="space-y-4">
@@ -24,7 +39,7 @@ export default function TodayPage() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="rounded-pill bg-chipBg px-4 py-2 text-[13px] font-medium">{events.length} meetings</span>
+          <span className="rounded-pill bg-chipBg px-4 py-2 text-[13px] font-medium">{eventsToday.length} meetings</span>
           <span className="rounded-pill bg-chipBg px-4 py-2 text-[13px] font-medium">{tasks.length} tasks</span>
           <span className="rounded-pill bg-chipBg px-4 py-2 text-[13px] font-medium">1 priority</span>
         </div>
@@ -33,7 +48,7 @@ export default function TodayPage() {
       <Card className="p-4">
         <p className="mb-3 text-[22px] font-semibold">Your Day</p>
         <div className="space-y-2">
-          {events.map((event) => (
+          {eventsToday.map((event) => (
             <ListRow
               key={event.id}
               left={<CategoryDot category={event.category} />}
@@ -45,9 +60,9 @@ export default function TodayPage() {
           {tasks.map((task) => (
             <ListRow
               key={task.id}
-              left={<CategoryDot category={task.category} />}
+              left={<CategoryDot category={task.category ?? "work"} />}
               title={task.title}
-              subtitle={formatTimeRange(task.start_at, task.end_at)}
+              subtitle={formatTimeRange(task.due_at ?? task.start_at, task.end_at)}
               right={<span className="text-[12px] text-textTertiary">Task</span>}
             />
           ))}

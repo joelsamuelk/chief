@@ -25,7 +25,18 @@ export function createTaskLocal(input: TaskInput, userId: string): Task {
   const next: Task = {
     id: id(),
     user_id: userId,
-    ...input,
+    title: input.title,
+    description: input.description ?? null,
+    start_at: input.start_at ?? null,
+    end_at: input.end_at ?? null,
+    due_at: input.due_at ?? null,
+    all_day: input.all_day ?? false,
+    category: input.category ?? "work",
+    priority: input.priority ?? "medium",
+    status: input.status ?? "open",
+    source_id: input.source_id ?? null,
+    delegated_to: input.delegated_to ?? null,
+    delegated_by: input.delegated_by ?? null,
     created_at: now,
     updated_at: now
   };

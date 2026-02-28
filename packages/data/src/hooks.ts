@@ -12,28 +12,46 @@ import {
   updateTask
 } from "./api";
 
+function toLocalDayKey(input: string | Date) {
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function useTasks(filter: "all" | "today" | "upcoming" | "completed" = "all") {
   return useQuery({
     queryKey: ["tasks", filter],
     queryFn: async () => {
       const all = await listTasks();
-      const todayDate = new Date().toISOString().slice(0, 10);
+      const todayDate = toLocalDayKey(new Date());
+      const taskDate = (task: Task) => {
+        const value = task.due_at ?? task.start_at ?? task.end_at;
+        return value ? toLocalDayKey(value) : null;
+      };
 
-      if (filter === "completed") return all.filter((task) => task.status === "done");
+      if (filter === "completed") {
+        return all.filter((task) => task.status === "done" || task.status === "completed");
+      }
       if (filter === "today") {
         return all.filter((task) => {
-          const start = task.start_at?.slice(0, 10);
-          return task.status === "open" && start === todayDate;
+          const date = taskDate(task);
+          return (task.status === "open" || task.status === "waiting") && date === todayDate;
         });
       }
       if (filter === "upcoming") {
         return all.filter((task) => {
-          if (task.status === "done" || !task.start_at) return false;
-          return task.start_at.slice(0, 10) > todayDate;
+          const date = taskDate(task);
+          if (!date) return false;
+          if (task.status === "done" || task.status === "completed" || task.status === "archived") return false;
+          if (!todayDate) return false;
+          return date > todayDate;
         });
       }
 
-      return all;
+      return all.filter((task) => task.status !== "archived");
     }
   });
 }

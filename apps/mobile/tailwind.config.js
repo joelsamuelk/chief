@@ -8,7 +8,7 @@ module.exports = {
     extend: {
       ...themeExtension,
       fontFamily: {
-        sans: ["System"]
+        sans: ["Outfit_400Regular", "System"]
       }
     }
   },

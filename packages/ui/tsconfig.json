@@ -4,5 +4,5 @@
     "jsx": "react-jsx",
     "types": ["react", "react-native", "nativewind/types"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
 }

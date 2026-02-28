@@ -5,18 +5,25 @@ import {
   useUpdateTask
 } from "@chief/data";
 import type { Category } from "@chief/types";
+import { colors } from "@chief/theme";
 import {
   BottomSheet,
-  Chip,
-  TimeCard,
   ToggleRow
 } from "@chief/ui/mobile";
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type { RootStackParamList } from "../navigation/types";
 
 const categories: Category[] = ["work", "personal", "health", "finance"];
+
+const categoryClassNames: Record<Category, string> = {
+  work: "bg-work",
+  personal: "bg-personal",
+  health: "bg-health",
+  finance: "bg-finance"
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, "TaskEditor">;
 
@@ -30,6 +37,16 @@ function toIso(value: string) {
   return new Date(value).toISOString();
 }
 
+function formatDateLabel(value: string) {
+  if (!value) return "Set date";
+  return new Date(value).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatTimeLabel(value: string) {
+  if (!value) return "Set time";
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 export function TaskEditorModalScreen({ navigation, route }: Props) {
   const { data: tasks = [] } = useTasks("all");
   const createTask = useCreateTask();
@@ -41,22 +58,19 @@ export function TaskEditorModalScreen({ navigation, route }: Props) {
     [route.params?.taskId, tasks]
   );
 
-  const [title, setTitle] = useState(editingTask?.title ?? "New task");
+  const [title, setTitle] = useState(editingTask?.title ?? "");
   const [startAt, setStartAt] = useState(toInputValue(editingTask?.start_at ?? null));
   const [endAt, setEndAt] = useState(toInputValue(editingTask?.end_at ?? null));
   const [allDay, setAllDay] = useState(editingTask?.all_day ?? false);
   const [category, setCategory] = useState<Category>(editingTask?.category ?? "work");
 
   useEffect(() => {
-    setTitle(editingTask?.title ?? "New task");
+    setTitle(editingTask?.title ?? "");
     setStartAt(toInputValue(editingTask?.start_at ?? null));
     setEndAt(toInputValue(editingTask?.end_at ?? null));
     setAllDay(editingTask?.all_day ?? false);
     setCategory(editingTask?.category ?? "work");
   }, [editingTask]);
-
-  const startLabel = startAt ? new Date(startAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Start";
-  const endLabel = endAt ? new Date(endAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "End";
 
   async function save() {
     if (editingTask) {
@@ -91,19 +105,25 @@ export function TaskEditorModalScreen({ navigation, route }: Props) {
     navigation.goBack();
   }
 
+  function rotateCategory() {
+    const index = categories.findIndex((item) => item === category);
+    const next = categories[(index + 1) % categories.length];
+    setCategory(next);
+  }
+
   return (
     <View className="flex-1 bg-transparent">
       <BottomSheet
         open
         onClose={() => navigation.goBack()}
         header={
-          <View className="mb-3 flex-row items-center justify-between">
+          <View className="mb-2 flex-row items-center justify-between">
             <Pressable onPress={() => navigation.goBack()}>
-              <Text className="text-[18px] text-textSecondary">X</Text>
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
             </Pressable>
-            <Text className="text-[17px] font-semibold text-textPrimary">Edit Task</Text>
+            <Text className="text-[17px] font-semibold text-textPrimary">{editingTask ? "Edit Task" : "New Task"}</Text>
             <Pressable onPress={() => void save()}>
-              <Text className="text-[17px] font-semibold text-textPrimary">✓</Text>
+              <Ionicons name="checkmark" size={20} color={colors.textPrimary} />
             </Pressable>
           </View>
         }
@@ -114,6 +134,8 @@ export function TaskEditorModalScreen({ navigation, route }: Props) {
             <TextInput
               value={title}
               onChangeText={setTitle}
+              placeholder="Create Report for SwiftDoc."
+              placeholderTextColor="#9CA3AF"
               className="h-12 rounded-[16px] border border-divider bg-bg px-4 text-[16px] text-textPrimary"
             />
           </View>
@@ -121,37 +143,45 @@ export function TaskEditorModalScreen({ navigation, route }: Props) {
           <View>
             <Text className="mb-2 text-[12px] font-medium text-textSecondary">Time</Text>
             <View className="flex-row gap-2">
-              <TimeCard label="Start" value={startLabel} />
-              <TimeCard label="End" value={endLabel} />
-            </View>
-            <View className="mt-2 flex-row gap-2">
-              <TextInput
-                value={startAt}
-                onChangeText={setStartAt}
-                placeholder="YYYY-MM-DDTHH:mm"
-                className="flex-1 h-11 rounded-[16px] border border-divider bg-bg px-3 text-[12px] text-textSecondary"
-              />
-              <TextInput
-                value={endAt}
-                onChangeText={setEndAt}
-                placeholder="YYYY-MM-DDTHH:mm"
-                className="flex-1 h-11 rounded-[16px] border border-divider bg-bg px-3 text-[12px] text-textSecondary"
-              />
+              <View className="flex-1 rounded-[16px] border border-divider bg-bg px-3 py-3">
+                <Text className="text-[11px] font-medium text-textTertiary">{formatDateLabel(startAt)}</Text>
+                <Text className="mt-1 text-[16px] font-semibold text-textPrimary">{formatTimeLabel(startAt)}</Text>
+                <Text className="mt-2 text-[11px] text-textTertiary">Start (YYYY-MM-DDTHH:mm)</Text>
+                <TextInput
+                  value={startAt}
+                  onChangeText={setStartAt}
+                  placeholder="2026-05-16T09:30"
+                  className="mt-1 h-8 rounded-[10px] bg-surface px-2 text-[11px] text-textSecondary"
+                />
+              </View>
+              <View className="flex-1 rounded-[16px] border border-divider bg-bg px-3 py-3">
+                <Text className="text-[11px] font-medium text-textTertiary">{formatDateLabel(endAt)}</Text>
+                <Text className="mt-1 text-[16px] font-semibold text-textPrimary">{formatTimeLabel(endAt)}</Text>
+                <Text className="mt-2 text-[11px] text-textTertiary">End (YYYY-MM-DDTHH:mm)</Text>
+                <TextInput
+                  value={endAt}
+                  onChangeText={setEndAt}
+                  placeholder="2026-05-16T10:30"
+                  className="mt-1 h-8 rounded-[10px] bg-surface px-2 text-[11px] text-textSecondary"
+                />
+              </View>
             </View>
           </View>
 
           <ToggleRow label="All-day event" value={allDay} onChange={setAllDay} />
 
-          <View className="rounded-[18px] border border-divider px-3 py-2">
-            <Text className="mb-2 text-[13px] font-medium text-textSecondary">Category</Text>
-            <View className="flex-row flex-wrap gap-2">
-              {categories.map((item) => (
-                <Chip key={item} label={item} active={item === category} onPress={() => setCategory(item)} />
-              ))}
+          <View className="rounded-[18px] border border-divider bg-surface px-3 py-2">
+            <Text className="mb-1 text-[12px] font-medium text-textSecondary">Custom Task Color</Text>
+            <View className="flex-row items-center justify-between py-1">
+              <Pressable onPress={rotateCategory} className="flex-row items-center gap-2">
+                <View className={`h-2.5 w-2.5 rounded-full ${categoryClassNames[category]}`} />
+                <Text className="text-[15px] text-textPrimary">{category[0].toUpperCase() + category.slice(1)}</Text>
+              </Pressable>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </View>
           </View>
 
-          <View className="rounded-[18px] border border-divider px-3 py-2">
+          <View className="rounded-[18px] border border-divider px-3 py-2 bg-surface">
             <View className="flex-row items-center justify-between py-2">
               <Text className="text-[14px] text-textSecondary">Alert</Text>
               <Text className="text-[14px] text-textSecondary">15 minutes before</Text>
@@ -163,17 +193,19 @@ export function TaskEditorModalScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <View className="flex-row flex-wrap gap-2">
+          <View className="flex-row justify-between gap-2">
             {["Location", "Attendees", "Video Call", "Note"].map((item) => (
-              <View key={item} className="rounded-full bg-chipBg px-4 py-3">
+              <View key={item} className="min-h-14 flex-1 items-center justify-center rounded-[14px] border border-divider bg-surface">
                 <Text className="text-[12px] font-medium text-textSecondary">{item}</Text>
               </View>
             ))}
           </View>
 
-          <Pressable onPress={() => void remove()} className="h-12 items-center justify-center rounded-full bg-dangerBg">
-            <Text className="text-[14px] font-medium text-dangerText">Delete</Text>
-          </Pressable>
+          {editingTask ? (
+            <Pressable onPress={() => void remove()} className="h-12 items-center justify-center rounded-full bg-dangerBg">
+              <Text className="text-[14px] font-medium text-dangerText">Delete</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </BottomSheet>
     </View>

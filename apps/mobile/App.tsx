@@ -2,11 +2,20 @@ import "react-native-gesture-handler";
 import "./global.css";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+  useFonts
+} from "@expo-google-fonts/outfit";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { Text, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { CalendarScreen } from "./src/screens/CalendarScreen";
 import { EventEditorModalScreen } from "./src/screens/EventEditorModalScreen";
@@ -19,22 +28,84 @@ import type { RootStackParamList, TabParamList } from "./src/navigation/types";
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+function QuickAddPlaceholder() {
+  return null;
+}
+
 function Tabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarStyle: {
-          height: 72,
+          position: "absolute",
+          left: 18,
+          right: 18,
+          bottom: 12,
+          height: 68,
           borderTopWidth: 0,
-          backgroundColor: "#FFFFFF"
+          backgroundColor: "#FFFFFF",
+          borderRadius: 24,
+          shadowColor: "#111111",
+          shadowOpacity: 0.08,
+          shadowRadius: 22,
+          shadowOffset: { width: 0, height: 10 },
+          elevation: 6
         },
         tabBarActiveTintColor: "#111111",
-        tabBarInactiveTintColor: "#9CA3AF"
-      }}
+        tabBarInactiveTintColor: "#9CA3AF",
+        tabBarIcon: ({ color, size, focused }) => {
+          if (route.name === "QuickAdd") return null;
+
+          const iconName =
+            route.name === "Today"
+              ? focused
+                ? "home"
+                : "home-outline"
+              : route.name === "Calendar"
+                ? focused
+                  ? "calendar"
+                  : "calendar-outline"
+                : route.name === "Tasks"
+                  ? focused
+                    ? "document-text"
+                    : "document-text-outline"
+                  : focused
+                    ? "person"
+                    : "person-outline";
+
+          return <Ionicons name={iconName} size={size ?? 22} color={color} />;
+        }
+      })}
     >
       <Tab.Screen name="Today" component={TodayScreen} />
       <Tab.Screen name="Calendar" component={CalendarScreen} />
+      <Tab.Screen
+        name="QuickAdd"
+        component={QuickAddPlaceholder}
+        listeners={({ navigation }) => ({
+          tabPress: (event) => {
+            event.preventDefault();
+            navigation.getParent()?.navigate("TaskEditor" as never);
+          }
+        })}
+        options={{
+          tabBarIcon: () => null,
+          tabBarButton: ({ onPress, accessibilityLabel, accessibilityState, testID }) => (
+            <TouchableOpacity
+              onPress={onPress}
+              accessibilityLabel={accessibilityLabel}
+              accessibilityState={accessibilityState}
+              testID={testID}
+              activeOpacity={0.85}
+              className="mt-[-24px] h-14 w-14 items-center justify-center rounded-full bg-black"
+            >
+              <Ionicons name="add" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          )
+        }}
+      />
       <Tab.Screen name="Tasks" component={TasksScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
@@ -42,6 +113,29 @@ function Tabs() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Outfit_400Regular,
+    Outfit_500Medium,
+    Outfit_600SemiBold,
+    Outfit_700Bold
+  });
+
+  useEffect(() => {
+    if (!fontsLoaded) return;
+
+    const TextAny = Text as unknown as { defaultProps?: Record<string, unknown> };
+    const TextInputAny = TextInput as unknown as { defaultProps?: Record<string, unknown> };
+
+    TextAny.defaultProps = TextAny.defaultProps ?? {};
+    TextAny.defaultProps.style = [{ fontFamily: "Outfit_400Regular" }, TextAny.defaultProps.style ?? {}];
+
+    TextInputAny.defaultProps = TextInputAny.defaultProps ?? {};
+    TextInputAny.defaultProps.style = [
+      { fontFamily: "Outfit_400Regular" },
+      TextInputAny.defaultProps.style ?? {}
+    ];
+  }, [fontsLoaded]);
+
   const queryClient = useMemo(
     () =>
       new QueryClient({
@@ -54,6 +148,8 @@ export default function App() {
       }),
     []
   );
+
+  if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>

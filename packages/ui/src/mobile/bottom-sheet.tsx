@@ -37,7 +37,10 @@ export function BottomSheet({ open, onClose, header, children }: PropsWithChildr
       <Animated.View style={[overlayStyle]} className="absolute inset-0 bg-black/20">
         <Pressable className="h-full w-full" onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[sheetStyle]} className="rounded-t-[28px] bg-surface px-5 pb-8 pt-4">
+      <Animated.View style={[sheetStyle]} className="rounded-t-[28px] bg-surface px-5 pb-8 pt-3">
+        <View className="mb-3 items-center">
+          <View className="h-1 w-10 rounded-full bg-divider" />
+        </View>
         {header}
         {children}
       </Animated.View>

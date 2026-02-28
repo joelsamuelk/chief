@@ -12,6 +12,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": ["apps/web/*"],
       "@chief/theme": ["packages/theme/src/index.ts"],
       "@chief/theme/*": ["packages/theme/src/*"],
       "@chief/types": ["packages/types/src/index.ts"],

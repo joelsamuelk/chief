@@ -87,7 +87,7 @@ with check (id = auth.uid());
 drop policy if exists "profiles_insert_self" on public.profiles;
 create policy "profiles_insert_self"
 on public.profiles for insert
-authenticated
+to authenticated
 with check (id = auth.uid());
 
 drop policy if exists "tasks_select_own" on public.tasks;
@@ -98,7 +98,7 @@ using (user_id = auth.uid());
 drop policy if exists "tasks_insert_own" on public.tasks;
 create policy "tasks_insert_own"
 on public.tasks for insert
-authenticated
+to authenticated
 with check (user_id = auth.uid());
 
 drop policy if exists "tasks_update_own" on public.tasks;
@@ -120,7 +120,7 @@ using (user_id = auth.uid());
 drop policy if exists "events_insert_own" on public.events;
 create policy "events_insert_own"
 on public.events for insert
-authenticated
+to authenticated
 with check (user_id = auth.uid());
 
 drop policy if exists "events_update_own" on public.events;
@@ -142,7 +142,7 @@ using (user_id = auth.uid());
 drop policy if exists "decisions_insert_own" on public.decisions;
 create policy "decisions_insert_own"
 on public.decisions for insert
-authenticated
+to authenticated
 with check (user_id = auth.uid());
 
 drop policy if exists "decisions_update_own" on public.decisions;
@@ -164,7 +164,7 @@ using (user_id = auth.uid());
 drop policy if exists "weekly_focus_insert_own" on public.weekly_focus;
 create policy "weekly_focus_insert_own"
 on public.weekly_focus for insert
-authenticated
+to authenticated
 with check (user_id = auth.uid());
 
 drop policy if exists "weekly_focus_update_own" on public.weekly_focus;

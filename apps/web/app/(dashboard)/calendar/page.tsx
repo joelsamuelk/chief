@@ -3,7 +3,8 @@
 import { useEvents } from "@chief/data";
 import type { Event } from "@chief/types";
 import { Card, CategoryDot, SegmentedControl } from "@chief/ui/web";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { EventEditorModal } from "../../../components/event-editor-modal";
 import { formatTimeRange } from "../../../lib/format";
 
@@ -16,11 +17,20 @@ function eventDayKey(date: Date) {
 }
 
 export default function CalendarPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<ViewMode>("Week");
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const { data: events = [] } = useEvents();
   const today = new Date();
+
+  useEffect(() => {
+    if (searchParams.get("action") !== "create") return;
+    setSelectedEvent(null);
+    setEditorOpen(true);
+    router.replace("/calendar");
+  }, [router, searchParams]);
 
   const monthDates = useMemo(() => {
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
