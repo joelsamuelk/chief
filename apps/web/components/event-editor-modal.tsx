@@ -13,7 +13,21 @@ function toInputValue(value: string) {
   return local.toISOString().slice(0, 16);
 }
 
-export function EventEditorModal({ event, open, onOpenChange }: { event: Event | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+interface EventEditorModalProps {
+  event: Event | null;
+  open: boolean;
+  draftStartAt?: string | null;
+  draftEndAt?: string | null;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function EventEditorModal({
+  event,
+  open,
+  draftStartAt,
+  draftEndAt,
+  onOpenChange
+}: EventEditorModalProps) {
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
   const [title, setTitle] = useState("");
@@ -30,13 +44,21 @@ export function EventEditorModal({ event, open, onOpenChange }: { event: Event |
       return;
     }
 
+    if (draftStartAt && draftEndAt) {
+      setTitle("New Event");
+      setStartAt(toInputValue(draftStartAt));
+      setEndAt(toInputValue(draftEndAt));
+      setCategory("work");
+      return;
+    }
+
     const now = new Date();
     const next = new Date(now.getTime() + 30 * 60_000);
     setTitle("New Event");
     setStartAt(toInputValue(now.toISOString()));
     setEndAt(toInputValue(next.toISOString()));
     setCategory("work");
-  }, [event]);
+  }, [draftEndAt, draftStartAt, event]);
 
   async function save() {
     if (event) {

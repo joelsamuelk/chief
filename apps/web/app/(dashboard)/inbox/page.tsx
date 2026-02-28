@@ -63,6 +63,7 @@ function toErrorMessage(err: unknown, fallback: string) {
 
 export default function InboxPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const localBuildMode = !supabase;
   const { spelling } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +91,18 @@ export default function InboxPage() {
   async function loadOverview() {
     setError(null);
     setLoading(true);
+
+    if (!supabase) {
+      setOverview({
+        connections: [],
+        connection_accounts: [],
+        queue_count: 0,
+        items: []
+      });
+      setLoading(false);
+      return;
+    }
+
     try {
       const token = await getToken();
       const response = await fetch("/api/inbox", {
@@ -174,6 +187,11 @@ export default function InboxPage() {
       </div>
 
       {error ? <p className="text-[13px] font-medium text-[#b42318]">{error}</p> : null}
+      {localBuildMode ? (
+        <p className="text-[13px] text-textSecondary">
+          Supabase-backed messaging ingestion is paused in local build mode.
+        </p>
+      ) : null}
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -181,7 +199,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => void loadOverview()}
-            disabled={loading}
+            disabled={localBuildMode || loading}
             className="h-9 rounded-pill bg-chipBg px-3 text-[12px] font-medium text-textSecondary disabled:opacity-70"
           >
             {loading ? "Refreshing..." : "Refresh"}

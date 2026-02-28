@@ -31,6 +31,7 @@ function GoogleIcon() {
 export default function HomePage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const localBuildMode = !supabase;
 
   const [email, setEmail] = useState("");
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -67,7 +68,7 @@ export default function HomePage() {
     setInfoMessage(null);
 
     if (!supabase) {
-      setErrorMessage("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+      setInfoMessage("Running in local build mode. Supabase auth is paused.");
       return;
     }
 
@@ -95,7 +96,7 @@ export default function HomePage() {
     setInfoMessage(null);
 
     if (!supabase) {
-      setErrorMessage("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+      setInfoMessage("Running in local build mode. Supabase auth is paused.");
       return;
     }
 
@@ -119,7 +120,7 @@ export default function HomePage() {
     setInfoMessage(null);
 
     if (!supabase) {
-      setErrorMessage("Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+      setInfoMessage("Running in local build mode. Supabase auth is paused.");
       return;
     }
 
@@ -163,10 +164,20 @@ export default function HomePage() {
           </p>
 
           <div className="mt-12 space-y-5">
+            {localBuildMode ? (
+              <button
+                type="button"
+                onClick={() => router.push("/today")}
+                className="flex h-12 w-full items-center justify-center rounded-[10px] bg-[#111418] text-[18px] font-semibold text-white transition hover:bg-black sm:text-[24px]"
+              >
+                Continue in local build mode
+              </button>
+            ) : null}
+
             <button
               type="button"
               onClick={() => void signInWithGoogle()}
-              disabled={isGoogleLoading || isAppleLoading || isEmailLoading}
+              disabled={localBuildMode || isGoogleLoading || isAppleLoading || isEmailLoading}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d2d2d2] bg-[#f4f4f4] text-[18px] font-medium text-[#202327] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 sm:text-[24px]"
             >
               <GoogleIcon />
@@ -176,7 +187,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => void signInWithApple()}
-              disabled={isGoogleLoading || isAppleLoading || isEmailLoading}
+              disabled={localBuildMode || isGoogleLoading || isAppleLoading || isEmailLoading}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-[#d2d2d2] bg-[#f4f4f4] text-[18px] font-medium text-[#202327] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-70 sm:text-[24px]"
             >
               {isAppleLoading ? "Redirecting..." : "Continue with Apple"}
@@ -202,7 +213,7 @@ export default function HomePage() {
 
               <button
                 type="submit"
-                disabled={isGoogleLoading || isAppleLoading || isEmailLoading}
+                disabled={localBuildMode || isGoogleLoading || isAppleLoading || isEmailLoading}
                 className="h-12 w-full rounded-[10px] bg-[#111418] text-[18px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-70 sm:text-[24px]"
               >
                 {isEmailLoading ? "Sending link..." : "Continue with email"}

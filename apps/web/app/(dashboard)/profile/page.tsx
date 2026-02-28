@@ -58,8 +58,17 @@ function toErrorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+function emptyConnections(): ToolConnection[] {
+  return [
+    { provider: "google", connected: false, connected_at: null, accounts: 0 },
+    { provider: "microsoft", connected: false, connected_at: null, accounts: 0 },
+    { provider: "apple", connected: false, connected_at: null, accounts: 0 }
+  ];
+}
+
 export default function ProfilePage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const localBuildMode = !supabase;
   const router = useRouter();
   const { language, setLanguage, spelling } = useLanguage();
 
@@ -69,15 +78,11 @@ export default function ProfilePage() {
   const [toolsLoading, setToolsLoading] = useState(true);
   const [toolsError, setToolsError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [connections, setConnections] = useState<ToolConnection[]>([
-    { provider: "google", connected: false, connected_at: null, accounts: 0 },
-    { provider: "microsoft", connected: false, connected_at: null, accounts: 0 },
-    { provider: "apple", connected: false, connected_at: null, accounts: 0 }
-  ]);
+  const [connections, setConnections] = useState<ToolConnection[]>(emptyConnections());
   const [connectionAccounts, setConnectionAccounts] = useState<ToolConnectionAccount[]>([]);
 
   async function getAccessToken() {
-    if (!supabase) throw new Error("Supabase is not configured.");
+    if (!supabase) throw new Error("Local build mode has no auth token.");
     const { data } = await supabase.auth.getSession();
     if (!data.session?.access_token) {
       throw new Error("Authentication session is not ready. Refresh and try again.");
@@ -88,6 +93,14 @@ export default function ProfilePage() {
   async function loadConnections() {
     setToolsError(null);
     setToolsLoading(true);
+
+    if (!supabase) {
+      setConnections(emptyConnections());
+      setConnectionAccounts([]);
+      setToolsLoading(false);
+      return;
+    }
+
     try {
       const token = await getAccessToken();
       const response = await fetch("/api/inbox", {
@@ -143,6 +156,12 @@ export default function ProfilePage() {
     async function loadProfile() {
       if (!supabase) {
         if (active) {
+          setProfile({
+            id: "local-user",
+            email: "local@chief.app",
+            name: "Local Build",
+            avatar_url: null
+          });
           setLoading(false);
         }
         return;
@@ -189,6 +208,11 @@ export default function ProfilePage() {
     action: "connect" | "disconnect",
     options?: { connection_id?: string; provider_user_id?: string }
   ) {
+    if (!supabase) {
+      setToolsError("Tool connections are paused in local build mode.");
+      return;
+    }
+
     setToolsError(null);
     setSavingKey(options?.connection_id ? `${provider}:${options.connection_id}` : `${provider}:${action}`);
     try {
@@ -301,27 +325,28 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => void loadConnections()}
-              disabled={toolsLoading || Boolean(savingKey)}
+              disabled={localBuildMode || toolsLoading || Boolean(savingKey)}
               className="h-8 rounded-pill bg-chipBg px-3 text-[12px] font-medium text-textSecondary disabled:opacity-70"
             >
               {toolsLoading ? "Loading..." : "Refresh"}
             </button>
           </div>
 
+          {localBuildMode ? (
+            <p className="mb-2 text-[12px] text-textSecondary">
+              Supabase integrations are paused in local build mode.
+            </p>
+          ) : null}
+
           {toolsError ? <p className="mb-2 text-[12px] font-medium text-[#b42318]">{toolsError}</p> : null}
 
           <div className="space-y-2">
             {connections.map((item) => {
-              const providerAccounts = connectionAccounts.filter(
-                (account) => account.provider === item.provider
-              );
+              const providerAccounts = connectionAccounts.filter((account) => account.provider === item.provider);
               const busyAdd = savingKey === `${item.provider}:connect`;
               const busyDisconnectAll = savingKey === `${item.provider}:disconnect`;
               return (
-                <div
-                  key={item.provider}
-                  className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3"
-                >
+                <div key={item.provider} className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-[14px] font-semibold text-textPrimary">{providerLabel(item.provider)}</p>
@@ -336,7 +361,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => void updateConnection(item.provider, "connect")}
-                        disabled={busyAdd || toolsLoading}
+                        disabled={localBuildMode || busyAdd || toolsLoading}
                         className="h-9 rounded-pill bg-chipActiveBg px-3 text-[12px] font-medium text-chipActiveText disabled:opacity-70"
                       >
                         {busyAdd ? "Adding..." : "Add account"}
@@ -345,7 +370,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => void updateConnection(item.provider, "disconnect")}
-                          disabled={busyDisconnectAll || toolsLoading}
+                          disabled={localBuildMode || busyDisconnectAll || toolsLoading}
                           className="h-9 rounded-pill bg-[#FBE9EA] px-3 text-[12px] font-medium text-[#A12A32] disabled:opacity-70"
                         >
                           {busyDisconnectAll ? "Updating..." : "Disconnect all"}
@@ -374,7 +399,7 @@ export default function ProfilePage() {
                                   connection_id: account.id
                                 })
                               }
-                              disabled={busyDisconnect || toolsLoading}
+                              disabled={localBuildMode || busyDisconnect || toolsLoading}
                               className="h-8 rounded-pill bg-[#FBE9EA] px-3 text-[11px] font-medium text-[#A12A32] disabled:opacity-70"
                             >
                               {busyDisconnect ? "..." : "Disconnect"}

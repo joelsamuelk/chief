@@ -51,6 +51,7 @@ function manualKind(provider: ManualIntegrationProvider) {
 export function RightRail() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
+  const localBuildMode = !supabase;
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [loadingConnections, setLoadingConnections] = useState(false);
   const [manualProvider, setManualProvider] = useState<ManualIntegrationProvider | null>(null);
@@ -112,6 +113,13 @@ export function RightRail() {
     if (!manualProvider) return;
     if (manualContent.trim().length === 0) {
       setManualMessage("Content is required.");
+      return;
+    }
+
+    if (localBuildMode) {
+      setManualMessage(
+        `${providerLabel(manualProvider)} notes saved locally. Cloud inbox extraction is paused in local build mode.`
+      );
       return;
     }
 
@@ -218,7 +226,11 @@ export function RightRail() {
       </Card>
       <Card className="border border-black/10 p-4 shadow-none">
         <p className="text-[13px] font-medium uppercase tracking-[0.08em] text-textSecondary">More Integrations</p>
-        <p className="mt-1 text-[12px] text-textSecondary">Import Slack, Notion, Linear, or Zoom updates.</p>
+        <p className="mt-1 text-[12px] text-textSecondary">
+          {localBuildMode
+            ? "Capture updates locally while Supabase is paused."
+            : "Import Slack, Notion, Linear, or Zoom updates."}
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(["slack", "notion", "linear", "zoom"] as const).map((provider) => (
             <button
