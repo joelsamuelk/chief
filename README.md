@@ -1,77 +1,114 @@
 # Chief
 
-Chief is an executive operating system (calendar + tasks + briefings) built as a monorepo with shared design tokens and UI primitives for web and mobile.
+Chief is a web-first Executive Operating System built for structured leadership clarity.
+
+## Local Mode (Current)
+
+This build runs in **local mode**:
+
+- No Supabase
+- No OAuth
+- No external AI APIs
+- Persistence via local SQLite (`apps/web/.chief-data/chief-local.sqlite`)
+- API + service + repository architecture designed to swap storage later
 
 ## Stack
 
 - Monorepo: `pnpm` workspaces + Turborepo
-- Web: Next.js 14 (App Router), TailwindCSS, Radix UI, TanStack Query, Framer Motion
-- Mobile: Expo (React Native), NativeWind, React Navigation, Reanimated
-- Backend: Supabase (schema + RLS + seed SQL in `packages/db`)
+- Web: Next.js 14 App Router + TypeScript + Tailwind
+- Font: Outfit
+- Data: local SQLite (`node:sqlite`) through repository interfaces
 
-## Repo Structure
+## Architecture
 
-- `apps/web` Next.js app shell + desktop layout
-- `apps/mobile` Expo app with tabs + modal sheet flows
-- `packages/theme` design tokens + Tailwind preset
-- `packages/ui` shared primitives (`/web` + `/mobile` exports)
-- `packages/types` shared typed models
-- `packages/data` Supabase client + CRUD + React Query hooks
-- `packages/db` SQL migrations + seed data
+### Storage abstraction
 
-## Setup
+`apps/web/lib/storage/`
 
-1. Install dependencies:
+- `types.ts` shared domain types + repo interfaces
+- `sqlite.ts` local SQLite repository implementation
+- `seeds.ts` realistic seed dataset
+- `index.ts` repository/context entrypoint
+
+### Service layer
+
+`apps/web/lib/services/`
+
+- onboarding, sources, extraction, queue, tasks, meetings, decisions
+- today, memory, team, assist, notifications, settings
+
+All feature logic goes through services + repositories.
+
+### API layer
+
+`apps/web/app/api/*`
+
+Route handlers are thin controllers that validate input, call services, and return JSON.
+
+## Web routes
+
+- `/app/onboarding`
+- `/app/today`
+- `/app/queue`
+- `/app/tasks`
+- `/app/meetings`
+- `/app/memory`
+- `/app/team`
+- `/app/decisions`
+- `/app/assist`
+- `/app/settings`
+
+## Run
 
 ```bash
 pnpm install
-```
-
-2. Configure env vars:
-
-Web (`apps/web/.env.local`)
-
-```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-Mobile (`apps/mobile/.env` or Expo env)
-
-```bash
-EXPO_PUBLIC_SUPABASE_URL=...
-EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-3. Apply SQL in Supabase:
-
-- Run migration: `packages/db/migrations/0001_init.sql`
-- Run seed: `packages/db/seeds/0001_seed.sql`
-
-4. Start development:
-
-```bash
-pnpm dev
-```
-
-Or per app:
-
-```bash
 pnpm --filter @chief/web dev
-pnpm --filter @chief/mobile dev
 ```
 
-## Core Flows Implemented
+Then open `http://localhost:3000`.
 
-- Day/Week/Month calendar modes
-- Task filters: All / Today / Upcoming / Completed
-- Add/edit/delete task (web modal + mobile bottom sheet)
-- Mark task done / reopen
-- Add/edit event (web modal + mobile bottom sheet)
-- Executive desktop shell: sidebar + main + right rail
-- Mobile tabs: Today / Calendar / Tasks / Profile
+## Seed, reset, export (UI)
 
-## Notes
+Go to `/app/settings`:
 
-- `packages/data` uses Supabase when env vars are present.
-- If env vars are missing, it falls back to in-memory seeded data for local UI development.
+- Seed sample data
+- Reset local data
+- Export local JSON
+- Import sample emails/meetings
+- Create shared text sources
+
+## Tests
+
+Minimal local tests are included for:
+
+- extraction parsing
+- queue accept -> task creation
+- today priority computation
+
+Run:
+
+```bash
+pnpm --filter @chief/web test:local
+```
+
+## Typecheck
+
+```bash
+pnpm --filter @chief/data typecheck
+pnpm --filter @chief/web typecheck
+```
+
+## Note on build in this environment
+
+`next build` may fail here if outbound network to Google Fonts is blocked.
+
+## Swapping to Supabase later
+
+The swap point is the storage boundary:
+
+1. Keep service + API contracts unchanged.
+2. Add a Supabase-backed repository implementation parallel to `sqlite.ts`.
+3. Switch `getStorageRepositories()` binding by environment.
+4. Retain the same domain types and service methods.
+
+This keeps UI and API routes stable while moving persistence from local SQLite to Supabase.

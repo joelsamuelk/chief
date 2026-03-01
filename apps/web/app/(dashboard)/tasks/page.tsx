@@ -3,12 +3,12 @@
 import { useTasks, useToggleTaskDone } from "@chief/data";
 import type { Task } from "@chief/types";
 import { Card, CategoryDot, Chip, ListRow } from "@chief/ui/web";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TaskEditorModal } from "../../../components/task-editor-modal";
 import { formatTimeRange } from "../../../lib/format";
 
-type Filter = "all" | "today" | "upcoming" | "completed";
+type Filter = "all" | "today" | "overdue" | "upcoming" | "waiting" | "completed" | "archived";
 type PageSize = 10 | 20 | 50;
 
 function getStatusStyle(status: Task["status"]) {
@@ -41,6 +41,7 @@ function getStatusStyle(status: Task["status"]) {
 
 export default function TasksPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
@@ -67,8 +68,8 @@ export default function TasksPage() {
   useEffect(() => {
     if (searchParams.get("action") !== "create") return;
     void createNew();
-    router.replace("/tasks");
-  }, [createNew, router, searchParams]);
+    router.replace(pathname || "/app/tasks");
+  }, [createNew, pathname, router, searchParams]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));
@@ -113,10 +114,34 @@ export default function TasksPage() {
           }}
         />
         <Chip
+          label="Overdue"
+          active={filter === "overdue"}
+          onClick={() => {
+            setFilter("overdue");
+            setPage(1);
+          }}
+        />
+        <Chip
+          label="Waiting"
+          active={filter === "waiting"}
+          onClick={() => {
+            setFilter("waiting");
+            setPage(1);
+          }}
+        />
+        <Chip
           label="Completed"
           active={filter === "completed"}
           onClick={() => {
             setFilter("completed");
+            setPage(1);
+          }}
+        />
+        <Chip
+          label="Archived"
+          active={filter === "archived"}
+          onClick={() => {
+            setFilter("archived");
             setPage(1);
           }}
         />

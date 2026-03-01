@@ -1,10 +1,12 @@
-import { deleteAccountData } from "@/lib/services/account-service";
-import { jsonOk, parseOptionalJson, withAuthedRoute } from "@/lib/server/http";
+import { deleteAccountData, seedAccountData } from "@/lib/services/account-service";
+import { jsonError, jsonOk, parseOptionalJson } from "@/lib/server/http";
 
 export async function DELETE(request: Request) {
-  return withAuthedRoute(request, async (context) => {
-    const payload = await parseOptionalJson<{ delete_auth_user?: boolean }>(request, {});
-    const result = await deleteAccountData(context, payload);
+  try {
+    const payload = await parseOptionalJson<{ action?: "reset" | "seed" }>(request, {});
+    const result = payload.action === "seed" ? seedAccountData() : deleteAccountData();
     return jsonOk(result);
-  });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:local": "tsc -p tsconfig.tests.json && mkdir -p .tmp-tests/node_modules/server-only && printf 'module.exports = {};\\n' > .tmp-tests/node_modules/server-only/index.js && node --test --test-concurrency=1 .tmp-tests/tests/*.test.js"
   },
   "dependencies": {
     "@chief/data": "workspace:*",

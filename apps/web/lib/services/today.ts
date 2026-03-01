@@ -1,106 +1,129 @@
-import type { ExtractedItem, Meeting, Task } from "@chief/types";
-import type { AuthContext } from "@/lib/utils/auth";
-import { prioritizeTasks } from "@/lib/ai/prioritize";
-import { detectRiskObjects, type RiskObject } from "@/lib/ai/risks";
-import { toIsoDate } from "@/lib/utils/dates";
-import { getMeetingsForDate } from "./meetings";
+import { getDefaultContext, getRepos } from "../storage";
+import type { Risk, Task, TodayPriority } from "../storage";
+import { getMeetings } from "./meetings";
+import { getTasks } from "./tasks";
 
-export interface TodaySnapshot {
-  date: string;
-  top_priorities: Array<{
-    task_id: string;
-    title: string;
-    score: number;
-    due_at: string | null;
-    priority: string;
-    delegated_to: string | null;
-  }>;
-  overdue: Task[];
-  meetings_today: Meeting[];
-  risks: RiskObject[];
-  queue_count: number;
+function toDayKey(input: string | Date) {
+  const date = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function dueAt(task: Task) {
-  return task.due_at ?? task.end_at ?? task.start_at;
+function scoreTask(task: Task, todayKey: string) {
+  let score = 0;
+  if (task.status === "completed" || task.status === "archived") return score;
+  const dueKey = task.due_at ? toDayKey(task.due_at) : null;
+  if (dueKey && dueKey < todayKey) score += 3;
+  if (dueKey && dueKey === todayKey) score += 2;
+  if (task.priority === "high") score += 1;
+  if (task.waiting_on && task.waiting_on.trim().length > 0) score += 1;
+  return score;
 }
 
-function isOverdue(task: Task, now = new Date()) {
-  const due = dueAt(task);
-  if (!due) return false;
-  return task.status === "open" && new Date(due).getTime() < now.getTime();
-}
-
-export async function detectRisks(context: AuthContext): Promise<RiskObject[]> {
-  const [{ data: tasks, error: tasksError }, { data: queueItems, error: queueError }] = await Promise.all([
-    context.supabase.from("tasks").select("*"),
-    context.supabase.from("extracted_items").select("*")
-  ]);
-  if (tasksError) throw tasksError;
-  if (queueError) throw queueError;
-  return detectRiskObjects((tasks ?? []) as Task[], (queueItems ?? []) as ExtractedItem[]);
-}
-
-export async function getTodaySnapshot(context: AuthContext): Promise<TodaySnapshot> {
-  const [{ data: tasksData, error: tasksError }, { count: queueCount, error: queueError }, meetings, risks] =
-    await Promise.all([
-      context.supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-      context.supabase.from("extracted_items").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      getMeetingsForDate(context),
-      detectRisks(context)
-    ]);
-
-  if (tasksError) throw tasksError;
-  if (queueError) throw queueError;
-
-  const tasks = (tasksData ?? []) as Task[];
+export function detectRisks() {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const tasks = repos.task.list(context);
+  const queue = repos.extractedItem.list(context);
   const now = new Date();
+  const threeDaysAgo = new Date(now);
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+  const fortyEightHoursAgo = new Date(now);
+  fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
 
-  const priorities = prioritizeTasks(
-    tasks.filter((task) => task.status !== "completed" && task.status !== "done" && task.status !== "archived"),
-    now,
-    3
-  ).map((item) => ({
+  const risks: Risk[] = [];
+
+  tasks.forEach((task) => {
+    if (task.status === "open" && task.due_at) {
+      const dueAt = new Date(task.due_at);
+      if (dueAt.getTime() < threeDaysAgo.getTime()) {
+        risks.push({
+          kind: "overdue",
+          title: `Task overdue: ${task.title}`,
+          detail: "Task is overdue by more than three days.",
+          severity: "high",
+          confidence: 0.83,
+          evidence: [{ quote: task.title }],
+          source_id: task.id
+        });
+      }
+    }
+
+    if (
+      task.delegated_to &&
+      !task.delegated_acknowledged_at &&
+      new Date(task.created_at).getTime() < fortyEightHoursAgo.getTime()
+    ) {
+      risks.push({
+        kind: "delegated_stuck",
+        title: `Delegation waiting: ${task.title}`,
+        detail: "Delegated task has not been acknowledged in 48h.",
+        severity: "medium",
+        confidence: 0.74,
+        evidence: [{ quote: task.title }],
+        source_id: task.id
+      });
+    }
+  });
+
+  queue.forEach((item) => {
+    if (item.status === "snoozed" && item.snooze_count > 2) {
+      risks.push({
+        kind: "snoozed",
+        title: `Repeated snooze: ${item.title}`,
+        detail: "Queue item has been snoozed more than two times.",
+        severity: "medium",
+        confidence: 0.69,
+        evidence: item.evidence,
+        source_id: item.id
+      });
+    }
+  });
+
+  return risks;
+}
+
+export function getTodaySnapshot() {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const todayDate = new Date();
+  const todayKey = toDayKey(todayDate)!;
+
+  const openTasks = getTasks("all").filter((task) => task.status !== "completed" && task.status !== "archived");
+  const scored = openTasks
+    .map((task) => ({
+      task,
+      score: scoreTask(task, todayKey)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const topPriorities: TodayPriority[] = scored.slice(0, 3).map((item) => ({
     task_id: item.task.id,
     title: item.task.title,
-    score: item.score,
-    due_at: dueAt(item.task) ?? null,
+    due_at: item.task.due_at,
     priority: item.task.priority,
-    delegated_to: item.task.delegated_to ?? null
+    score: item.score
   }));
 
-  const snapshot: TodaySnapshot = {
-    date: toIsoDate(now),
-    top_priorities: priorities,
-    overdue: tasks.filter((task) => isOverdue(task, now)),
-    meetings_today: meetings,
-    risks,
-    queue_count: queueCount ?? 0
-  };
-
-  let deleteQuery = context.supabase
-    .from("today_snapshots")
-    .delete()
-    .eq("user_id", context.userId)
-    .eq("date", snapshot.date);
-
-  if (context.orgId) {
-    deleteQuery = deleteQuery.eq("org_id", context.orgId);
-  } else {
-    deleteQuery = deleteQuery.is("org_id", null);
-  }
-
-  const { error: deleteError } = await deleteQuery;
-  if (deleteError) throw deleteError;
-
-  const { error: insertError } = await context.supabase.from("today_snapshots").insert({
-    user_id: context.userId,
-    org_id: context.orgId,
-    date: snapshot.date,
-    top_priorities: snapshot.top_priorities,
-    risks: snapshot.risks
+  const overdue = getTasks("overdue");
+  const meetingsToday = getMeetings("all").filter((meeting) => {
+    const meetingDay = toDayKey(meeting.start_time);
+    return meetingDay === todayKey;
   });
-  if (insertError) throw insertError;
+  const queueCount = repos.extractedItem.listQueue(context, new Date().toISOString()).length;
+  const risks = detectRisks();
+  const snapshot = repos.snapshot.upsert(context, todayKey, topPriorities, risks);
 
-  return snapshot;
+  return {
+    date: todayKey,
+    top_priorities: topPriorities,
+    overdue,
+    meetings_today: meetingsToday,
+    risks,
+    queue_count: queueCount,
+    snapshot
+  };
 }

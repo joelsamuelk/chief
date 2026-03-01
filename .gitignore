@@ -9,3 +9,5 @@ coverage
 .env
 .env.local
 .DS_Store
+.chief-data
+.tmp-tests

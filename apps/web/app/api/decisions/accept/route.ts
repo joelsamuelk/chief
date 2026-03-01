@@ -1,15 +1,15 @@
-import { acceptExtractedDecision } from "@/lib/services/decision-service";
-import { jsonOk, parseJson, withAuthedRoute } from "@/lib/server/http";
+import { acceptExtractedDecision } from "@/lib/services/decisions";
+import { jsonError, jsonOk, parseJson } from "@/lib/server/http";
 
 export async function POST(request: Request) {
-  return withAuthedRoute(request, async (context) => {
+  try {
     const payload = await parseJson<{
       extracted_item_id: string;
-      related_meeting_id?: string | null;
-      task_ids?: string[];
     }>(request);
 
-    const decision = await acceptExtractedDecision(context, payload);
+    const decision = acceptExtractedDecision(payload.extracted_item_id);
     return jsonOk({ decision });
-  });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

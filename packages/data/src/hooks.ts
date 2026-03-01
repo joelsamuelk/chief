@@ -1,58 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EventInput, Task, TaskInput } from "@chief/types";
-import {
-  createEvent,
-  createTask,
-  deleteEvent,
-  deleteTask,
-  listEvents,
-  listTasks,
-  toggleTaskDone,
-  updateEvent,
-  updateTask
-} from "./api";
+import { createEvent, createTask, deleteEvent, deleteTask, listEvents, listTasks, toggleTaskDone, updateEvent, updateTask } from "./api";
 
-function toLocalDayKey(input: string | Date) {
-  const date = input instanceof Date ? input : new Date(input);
-  if (Number.isNaN(date.getTime())) return null;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-export function useTasks(filter: "all" | "today" | "upcoming" | "completed" = "all") {
+export function useTasks(
+  filter: "all" | "today" | "overdue" | "upcoming" | "waiting" | "completed" | "archived" = "all"
+) {
   return useQuery({
     queryKey: ["tasks", filter],
-    queryFn: async () => {
-      const all = await listTasks();
-      const todayDate = toLocalDayKey(new Date());
-      const taskDate = (task: Task) => {
-        const value = task.due_at ?? task.start_at ?? task.end_at;
-        return value ? toLocalDayKey(value) : null;
-      };
-
-      if (filter === "completed") {
-        return all.filter((task) => task.status === "done" || task.status === "completed");
-      }
-      if (filter === "today") {
-        return all.filter((task) => {
-          const date = taskDate(task);
-          return (task.status === "open" || task.status === "waiting") && date === todayDate;
-        });
-      }
-      if (filter === "upcoming") {
-        return all.filter((task) => {
-          const date = taskDate(task);
-          if (!date) return false;
-          if (task.status === "done" || task.status === "completed" || task.status === "archived") return false;
-          if (!todayDate) return false;
-          return date > todayDate;
-        });
-      }
-
-      return all.filter((task) => task.status !== "archived");
-    }
+    queryFn: async () => listTasks(filter)
   });
 }
 

@@ -1,10 +1,13 @@
-import { snoozeQueueItem } from "@/lib/services/action-queue-service";
-import { jsonOk, parseOptionalJson, withAuthedRoute } from "@/lib/server/http";
+import { snoozeExtractedItem } from "@/lib/services/queue";
+import { jsonError, jsonOk, parseOptionalJson } from "@/lib/server/http";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  return withAuthedRoute(request, async (context) => {
+  try {
     const payload = await parseOptionalJson<{ snoozed_until?: string | null }>(request, {});
-    const item = await snoozeQueueItem(context, params.id, payload.snoozed_until ?? null);
+    const until = payload.snoozed_until ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const item = snoozeExtractedItem(params.id, until);
     return jsonOk({ item });
-  });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

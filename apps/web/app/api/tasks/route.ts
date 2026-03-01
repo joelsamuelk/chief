@@ -1,30 +1,23 @@
 import { jsonError, jsonOk, parseJson } from "@/lib/server/http";
-import { createTask, getTasks } from "@/lib/services/tasks";
-import { requireAuth } from "@/lib/utils/auth";
-import {
-  parseWithSchema,
-  tasksQuerySchema,
-  type TasksQueryPayload
-} from "@/lib/utils/validation";
+import { createTask, getTasks, type TaskFilter } from "@/lib/services/tasks";
+
+const allowedFilters: TaskFilter[] = [
+  "all",
+  "today",
+  "overdue",
+  "upcoming",
+  "waiting",
+  "completed",
+  "archived"
+];
 
 export async function GET(request: Request) {
   try {
-    const context = await requireAuth(request);
     const { searchParams } = new URL(request.url);
-    const payload = parseWithSchema<TasksQueryPayload>(
-      tasksQuerySchema as {
-        safeParse: (value: unknown) => {
-          success: boolean;
-          data: TasksQueryPayload;
-          error?: { flatten: () => unknown };
-        };
-      },
-      {
-        filter: searchParams.get("filter") ?? "all"
-      }
-    );
-    const tasks = await getTasks(context, payload.filter);
-    return jsonOk({ tasks, filter: payload.filter });
+    const filterParam = (searchParams.get("filter") ?? "all") as TaskFilter;
+    const filter = allowedFilters.includes(filterParam) ? filterParam : "all";
+    const tasks = getTasks(filter);
+    return jsonOk({ tasks, filter });
   } catch (error) {
     return jsonError(error);
   }
@@ -32,18 +25,28 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const context = await requireAuth(request);
     const payload = await parseJson<{
       title: string;
       description?: string | null;
       due_at?: string | null;
-      priority?: "low" | "medium" | "high" | "med";
-      status?: "open" | "waiting" | "completed" | "done" | "archived";
+      priority?: "low" | "medium" | "high";
+      status?: "open" | "completed" | "archived" | "waiting";
       source_id?: string | null;
-      org_id?: string | null;
+      delegated_to?: string | null;
+      waiting_on?: string | null;
     }>(request);
 
-    const task = await createTask(context, payload);
+    const task = createTask({
+      title: payload.title,
+      description: payload.description ?? null,
+      due_at: payload.due_at ?? null,
+      priority: payload.priority ?? "medium",
+      status: payload.status ?? "open",
+      source_id: payload.source_id ?? null,
+      delegated_to: payload.delegated_to ?? null,
+      waiting_on: payload.waiting_on ?? null
+    });
+
     return jsonOk({ task }, { status: 201 });
   } catch (error) {
     return jsonError(error);

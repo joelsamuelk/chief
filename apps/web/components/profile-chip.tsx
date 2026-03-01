@@ -1,8 +1,7 @@
 "use client";
 
-import { getSupabaseClient } from "@chief/data";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface UserIdentity {
   name: string;
@@ -12,70 +11,50 @@ interface UserIdentity {
 
 function fallbackIdentity(): UserIdentity {
   return {
-    name: "Profile",
-    initial: "P",
+    name: "Executive",
+    initial: "E",
     avatarUrl: null
   };
 }
 
-function toIdentity(user: {
-  email?: string | null;
-  user_metadata?: Record<string, unknown>;
-} | null): UserIdentity {
-  if (!user) return fallbackIdentity();
-
-  const metadata = user.user_metadata ?? {};
-  const fullName =
-    typeof metadata.full_name === "string" && metadata.full_name.trim().length > 0
-      ? metadata.full_name.trim()
-      : typeof metadata.name === "string" && metadata.name.trim().length > 0
-        ? metadata.name.trim()
-        : user.email?.split("@")[0]?.trim() || "Profile";
-
-  const avatarFromMetadata =
-    typeof metadata.avatar_url === "string" && metadata.avatar_url.trim().length > 0
-      ? metadata.avatar_url.trim()
-      : typeof metadata.picture === "string" && metadata.picture.trim().length > 0
-        ? metadata.picture.trim()
-        : null;
-
-  return {
-    name: fullName,
-    initial: fullName.slice(0, 1).toUpperCase() || "P",
-    avatarUrl: avatarFromMetadata
-  };
-}
-
 export function ProfileChip() {
-  const supabase = useMemo(() => getSupabaseClient(), []);
   const [identity, setIdentity] = useState<UserIdentity>(fallbackIdentity);
 
   useEffect(() => {
-    if (!supabase) return;
-    const client = supabase;
     let active = true;
 
-    async function loadUser() {
-      const { data } = await client.auth.getUser();
-      if (!active) return;
-      setIdentity(toIdentity(data.user ?? null));
+    async function load() {
+      try {
+        const response = await fetch("/api/profile", { method: "GET", cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          profile?: { name?: string | null; avatar_url?: string | null };
+        };
+
+        const name = payload.profile?.name?.trim() || "Executive";
+        if (!active) return;
+
+        setIdentity({
+          name,
+          initial: name.slice(0, 1).toUpperCase() || "E",
+          avatarUrl: payload.profile?.avatar_url ?? null
+        });
+      } catch {
+        if (active) {
+          setIdentity(fallbackIdentity());
+        }
+      }
     }
 
-    void loadUser();
-
-    const { data: subscription } = client.auth.onAuthStateChange((_event, session) => {
-      setIdentity(toIdentity(session?.user ?? null));
-    });
-
+    void load();
     return () => {
       active = false;
-      subscription.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   return (
     <Link
-      href="/profile"
+      href="/app/settings"
       className="flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 transition hover:bg-[#F6F7F8]"
     >
       {identity.avatarUrl ? (

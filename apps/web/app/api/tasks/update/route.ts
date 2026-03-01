@@ -1,80 +1,73 @@
 import { jsonError, jsonOk, parseJson } from "@/lib/server/http";
-import { ApiError } from "@/lib/server/errors";
 import {
+  acknowledgeDelegation,
   archiveTask,
   completeTask,
-  createTask,
   delegateTask,
+  deleteTask,
   reopenTask,
   updateTask
 } from "@/lib/services/tasks";
-import { requireAuth } from "@/lib/utils/auth";
-import {
-  parseWithSchema,
-  taskUpdateSchema,
-  type TaskUpdatePayload
-} from "@/lib/utils/validation";
+
+type UpdateAction =
+  | "update"
+  | "complete"
+  | "reopen"
+  | "archive"
+  | "delete"
+  | "delegate"
+  | "acknowledge";
 
 export async function POST(request: Request) {
   try {
-    const context = await requireAuth(request);
-    const payload = parseWithSchema<TaskUpdatePayload>(
-      taskUpdateSchema as {
-        safeParse: (value: unknown) => {
-          success: boolean;
-          data: TaskUpdatePayload;
-          error?: { flatten: () => unknown };
-        };
-      },
-      await parseJson<unknown>(request)
-    );
-
-    if (payload.action === "create") {
-      const task = await createTask(context, {
-        title: payload.payload?.title ?? "",
-        description: payload.payload?.description,
-        due_at: payload.payload?.due_at,
-        priority: payload.payload?.priority,
-        status: payload.payload?.status,
-        source_id: payload.payload?.source_id,
-        org_id: payload.payload?.org_id
-      });
-      return jsonOk({ task }, { status: 201 });
-    }
+    const payload = await parseJson<{
+      action: UpdateAction;
+      task_id: string;
+      delegated_to?: string;
+      patch?: {
+        title?: string;
+        description?: string | null;
+        due_at?: string | null;
+        priority?: "low" | "medium" | "high";
+        status?: "open" | "completed" | "archived" | "waiting";
+        waiting_on?: string | null;
+      };
+    }>(request);
 
     if (!payload.task_id) {
-      throw new ApiError(400, "validation_failed", "task_id is required for this action.");
+      throw new Error("task_id is required.");
     }
 
     if (payload.action === "complete") {
-      const task = await completeTask(context, payload.task_id);
-      return jsonOk({ task });
+      return jsonOk({ task: completeTask(payload.task_id) });
     }
-
-    if (payload.action === "archive") {
-      const task = await archiveTask(context, payload.task_id);
-      return jsonOk({ task });
-    }
-
     if (payload.action === "reopen") {
-      const task = await reopenTask(context, payload.task_id);
-      return jsonOk({ task });
+      return jsonOk({ task: reopenTask(payload.task_id) });
     }
-
+    if (payload.action === "archive") {
+      return jsonOk({ task: archiveTask(payload.task_id) });
+    }
+    if (payload.action === "delete") {
+      return jsonOk(deleteTask(payload.task_id));
+    }
     if (payload.action === "delegate") {
-      const task = await delegateTask(context, payload.task_id, payload.delegated_to ?? "");
-      return jsonOk({ task });
+      if (!payload.delegated_to) throw new Error("delegated_to is required.");
+      return jsonOk({ task: delegateTask(payload.task_id, payload.delegated_to) });
+    }
+    if (payload.action === "acknowledge") {
+      return jsonOk({ task: acknowledgeDelegation(payload.task_id) });
     }
 
-    const task = await updateTask(context, payload.task_id, {
-      title: payload.payload?.title,
-      description: payload.payload?.description,
-      due_at: payload.payload?.due_at,
-      priority: payload.payload?.priority,
-      status: payload.payload?.status,
-      source_id: payload.payload?.source_id
+    return jsonOk({
+      task: updateTask(payload.task_id, {
+        title: payload.patch?.title,
+        description: payload.patch?.description,
+        due_at: payload.patch?.due_at,
+        priority: payload.patch?.priority,
+        status: payload.patch?.status,
+        waiting_on: payload.patch?.waiting_on
+      })
     });
-    return jsonOk({ task });
   } catch (error) {
     return jsonError(error);
   }

@@ -1,88 +1,71 @@
-import type { AuthContext } from "@/lib/utils/auth";
+import { getDefaultContext, getRepos } from "../storage";
 
-export interface MemoryHit {
-  type: "task" | "decision" | "meeting" | "queue_item" | "source";
+export interface MemoryResult {
+  type: "summary" | "task" | "meeting" | "decision";
   id: string;
   title: string;
-  snippet: string;
+  excerpt: string;
+  href: string;
 }
 
-export async function searchMemory(context: AuthContext, query: string, limit = 20): Promise<MemoryHit[]> {
-  const term = `%${query.trim()}%`;
-  if (!query.trim()) return [];
+export function searchMemory(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [] as MemoryResult[];
 
-  const [tasksRes, decisionsRes, meetingsRes, queueRes, sourcesRes] = await Promise.all([
-    context.supabase
-      .from("tasks")
-      .select("id,title,description")
-      .or(`title.ilike.${term},description.ilike.${term}`)
-      .limit(limit),
-    context.supabase
-      .from("decisions")
-      .select("id,title,context")
-      .or(`title.ilike.${term},context.ilike.${term}`)
-      .limit(limit),
-    context.supabase
-      .from("meetings")
-      .select("id,title,notes")
-      .or(`title.ilike.${term},notes.ilike.${term}`)
-      .limit(limit),
-    context.supabase
-      .from("extracted_items")
-      .select("id,title,body")
-      .or(`title.ilike.${term},body.ilike.${term}`)
-      .limit(limit),
-    context.supabase
-      .from("sources")
-      .select("id,provider,raw_content")
-      .ilike("raw_content", term)
-      .limit(Math.min(limit, 10))
-  ]);
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const results: MemoryResult[] = [];
 
-  if (tasksRes.error) throw tasksRes.error;
-  if (decisionsRes.error) throw decisionsRes.error;
-  if (meetingsRes.error) throw meetingsRes.error;
-  if (queueRes.error) throw queueRes.error;
-  if (sourcesRes.error) throw sourcesRes.error;
+  repos.extractedItem
+    .list(context)
+    .filter((item) => item.kind === "summary")
+    .forEach((item) => {
+      const target = `${item.title} ${item.body ?? ""}`.toLowerCase();
+      if (!target.includes(q)) return;
+      results.push({
+        type: "summary",
+        id: item.id,
+        title: item.title,
+        excerpt: (item.body ?? item.title).slice(0, 180),
+        href: "/queue"
+      });
+    });
 
-  const taskRows = (tasksRes.data ?? []) as Array<{ id: string; title: string | null; description: string | null }>;
-  const decisionRows = (decisionsRes.data ?? []) as Array<{ id: string; title: string | null; context: string | null }>;
-  const meetingRows = (meetingsRes.data ?? []) as Array<{ id: string; title: string | null; notes: string | null }>;
-  const queueRows = (queueRes.data ?? []) as Array<{ id: string; title: string | null; body: string | null }>;
-  const sourceRows = (sourcesRes.data ?? []) as Array<{ id: string; provider: string | null; raw_content: string | null }>;
+  repos.task.list(context).forEach((task) => {
+    const target = `${task.title} ${task.description ?? ""}`.toLowerCase();
+    if (!target.includes(q)) return;
+    results.push({
+      type: "task",
+      id: task.id,
+      title: task.title,
+      excerpt: (task.description ?? task.title).slice(0, 180),
+      href: "/tasks"
+    });
+  });
 
-  const hits: MemoryHit[] = [
-    ...taskRows.map((item) => ({
-      type: "task" as const,
-      id: item.id,
-      title: item.title ?? "Untitled task",
-      snippet: (item.description ?? "").slice(0, 220)
-    })),
-    ...decisionRows.map((item) => ({
-      type: "decision" as const,
-      id: item.id,
-      title: item.title ?? "Untitled decision",
-      snippet: (item.context ?? "").slice(0, 220)
-    })),
-    ...meetingRows.map((item) => ({
-      type: "meeting" as const,
-      id: item.id,
-      title: item.title ?? "Untitled meeting",
-      snippet: (item.notes ?? "").slice(0, 220)
-    })),
-    ...queueRows.map((item) => ({
-      type: "queue_item" as const,
-      id: item.id,
-      title: item.title ?? "Untitled queue item",
-      snippet: (item.body ?? "").slice(0, 220)
-    })),
-    ...sourceRows.map((item) => ({
-      type: "source" as const,
-      id: item.id,
-      title: `Source (${item.provider ?? "unknown"})`,
-      snippet: (item.raw_content ?? "").slice(0, 220)
-    }))
-  ];
+  repos.meeting.list(context).forEach((meeting) => {
+    const target = `${meeting.title} ${meeting.notes ?? ""}`.toLowerCase();
+    if (!target.includes(q)) return;
+    results.push({
+      type: "meeting",
+      id: meeting.id,
+      title: meeting.title,
+      excerpt: (meeting.notes ?? meeting.title).slice(0, 180),
+      href: "/meetings"
+    });
+  });
 
-  return hits.slice(0, limit);
+  repos.decision.list(context).forEach((decision) => {
+    const target = `${decision.title} ${decision.context ?? ""}`.toLowerCase();
+    if (!target.includes(q)) return;
+    results.push({
+      type: "decision",
+      id: decision.id,
+      title: decision.title,
+      excerpt: (decision.context ?? decision.title).slice(0, 180),
+      href: "/decisions"
+    });
+  });
+
+  return results;
 }

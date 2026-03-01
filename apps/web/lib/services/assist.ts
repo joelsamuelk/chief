@@ -1,130 +1,133 @@
-import type { Task } from "@chief/types";
-import type { AuthContext } from "@/lib/utils/auth";
-import {
-  detectAssistIntent,
-  noDataResponse,
-  type AssistAnswer,
-  type AssistIntent,
-  type AssistReference
-} from "@/lib/ai/assist";
-import { listPendingDecisions } from "./decisions";
-import { getClosestMeetingForQuery } from "./meetings";
+import { getRepos } from "../storage";
+import { getMeeting, getMeetings } from "./meetings";
+import { getDecisions } from "./decisions";
+import { getTeamOverview } from "./team";
+import { getTasks } from "./tasks";
 import { getTodaySnapshot } from "./today";
-import { detectRisks } from "./today";
 
-function asResponse(intent: AssistIntent, answer: string, references: AssistReference[]): AssistAnswer {
-  return {
-    intent,
-    answer,
-    references
-  };
+type AssistIntent =
+  | "waiting_on"
+  | "at_risk"
+  | "summarize_today"
+  | "prepare_meeting"
+  | "pending_decisions"
+  | "unknown";
+
+interface AssistReference {
+  type: string;
+  id: string;
+  title: string;
 }
 
-export async function handleAssistQuery(
-  context: AuthContext,
-  query: string,
-  meetingTime?: string
-): Promise<AssistAnswer> {
-  const intent = detectAssistIntent(query);
+function detectIntent(query: string): AssistIntent {
+  const q = query.toLowerCase();
+  if (q.includes("waiting") || q.includes("wait")) return "waiting_on";
+  if (q.includes("risk")) return "at_risk";
+  if (q.includes("summarize") || q.includes("summary") || q.includes("today")) return "summarize_today";
+  if (q.includes("prepare") || q.includes("meeting")) return "prepare_meeting";
+  if (q.includes("decision")) return "pending_decisions";
+  return "unknown";
+}
+
+export function handleAssistQuery(query: string, meetingId?: string) {
+  const intent = detectIntent(query);
+  const repos = getRepos();
+  const references: AssistReference[] = [];
 
   if (intent === "waiting_on") {
-    const { data, error } = await context.supabase
-      .from("tasks")
-      .select("id,title,status,delegated_to,delegated_acknowledged_at")
-      .or("status.eq.waiting,delegated_to.not.is.null")
-      .order("created_at", { ascending: false })
-      .limit(10);
+    const team = getTeamOverview();
+    const waiting = team.waiting_on_others;
+    if (waiting.length === 0) {
+      return { intent, answer: "Not enough information.", references: [] };
+    }
 
-    if (error) throw error;
-    const items = (data ?? []) as Array<
-      Pick<Task, "id" | "title" | "status" | "delegated_to" | "delegated_acknowledged_at">
-    >;
-    if (items.length === 0) return noDataResponse(intent);
+    waiting.slice(0, 5).forEach((task) => {
+      references.push({ type: "task", id: task.id, title: task.title });
+    });
 
-    const answer = items
-      .map((item) => {
-        const ack = item.delegated_acknowledged_at ? "acknowledged" : "unacknowledged";
-        return `${item.title} (${item.status}, ${ack})`;
-      })
-      .join("\n");
-
-    return asResponse(
+    return {
       intent,
-      answer,
-      items.map((item) => ({ type: "task", id: item.id, title: item.title }))
-    );
+      answer: `You are waiting on ${waiting.length} delegated task(s). Prioritise follow-up on the first two today.`,
+      references
+    };
   }
 
   if (intent === "at_risk") {
-    const risks = await detectRisks(context);
-    if (risks.length === 0) return noDataResponse(intent);
-
-    return asResponse(
+    const snapshot = getTodaySnapshot();
+    if (snapshot.risks.length === 0) {
+      return { intent, answer: "Not enough information.", references: [] };
+    }
+    snapshot.risks.slice(0, 5).forEach((risk) => {
+      references.push({ type: "risk", id: risk.source_id, title: risk.title });
+    });
+    return {
       intent,
-      risks
-        .slice(0, 8)
-        .map((risk) => `${risk.title} - ${risk.detail}`)
-        .join("\n"),
-      risks
-        .slice(0, 8)
-        .flatMap((risk) => risk.evidence.map((ev) => ({ type: "risk" as const, id: ev.id, title: risk.title })))
-    );
+      answer: `There are ${snapshot.risks.length} risk signal(s). Start with overdue and delegated-stuck items.`,
+      references
+    };
   }
 
   if (intent === "summarize_today") {
-    const today = await getTodaySnapshot(context);
-    const references: AssistReference[] = [
-      ...today.top_priorities.map((item) => ({ type: "task" as const, id: item.task_id, title: item.title })),
-      ...today.meetings_today.map((item) => ({ type: "meeting" as const, id: item.id, title: item.title }))
-    ];
+    const snapshot = getTodaySnapshot();
+    if (
+      snapshot.top_priorities.length === 0 &&
+      snapshot.overdue.length === 0 &&
+      snapshot.meetings_today.length === 0
+    ) {
+      return { intent, answer: "Not enough information.", references: [] };
+    }
 
-    const answer = [
-      `Top priorities: ${today.top_priorities.length}`,
-      `Overdue: ${today.overdue.length}`,
-      `Meetings today: ${today.meetings_today.length}`,
-      `Risks: ${today.risks.length}`,
-      `Pending queue: ${today.queue_count}`
-    ].join("\n");
-    return asResponse(intent, answer, references);
+    snapshot.top_priorities.forEach((priority) => {
+      references.push({ type: "task", id: priority.task_id, title: priority.title });
+    });
+
+    return {
+      intent,
+      answer: `Today has ${snapshot.top_priorities.length} top priorities, ${snapshot.overdue.length} overdue task(s), ${snapshot.meetings_today.length} meeting(s), and ${snapshot.queue_count} queue item(s).`,
+      references
+    };
   }
 
   if (intent === "prepare_meeting") {
-    const meeting = await getClosestMeetingForQuery(context, query, meetingTime);
-    if (!meeting) return noDataResponse(intent);
+    const meeting = meetingId ? getMeeting(meetingId) : getMeetings("upcoming")[0] ?? null;
+    if (!meeting) {
+      return { intent, answer: "Not enough information.", references: [] };
+    }
 
-    const sourceId = meeting.source_id;
-    const { data: taskData, error: taskError } = sourceId
-      ? await context.supabase
-          .from("tasks")
-          .select("id,title,status")
-          .eq("source_id", sourceId)
-          .limit(6)
-      : { data: [], error: null };
+    references.push({ type: "meeting", id: meeting.id, title: meeting.title });
+    const linkedTasks = getTasks("all").filter((task) => task.source_id === meeting.source_id);
+    linkedTasks.slice(0, 4).forEach((task) => {
+      references.push({ type: "task", id: task.id, title: task.title });
+    });
 
-    if (taskError) throw taskError;
-    const relatedTasks = (taskData ?? []) as Array<{ id: string; title: string; status: string }>;
-
-    const answer = [
-      `Meeting: ${meeting.title}`,
-      `Time: ${meeting.start_time} to ${meeting.end_time}`,
-      `Notes: ${meeting.notes ?? "No notes captured."}`,
-      relatedTasks.length > 0
-        ? `Related tasks:\n${relatedTasks.map((task) => `- ${task.title} (${task.status})`).join("\n")}`
-        : "Related tasks: none."
-    ].join("\n");
-
-    return asResponse(intent, answer, [
-      { type: "meeting", id: meeting.id, title: meeting.title },
-      ...relatedTasks.map((task) => ({ type: "task" as const, id: task.id, title: task.title }))
-    ]);
+    return {
+      intent,
+      answer: `Meeting prep: review notes, confirm owner decisions, and cover ${linkedTasks.length} linked task(s).`,
+      references
+    };
   }
 
-  const decisions = await listPendingDecisions(context);
-  if (decisions.length === 0) return noDataResponse(intent);
+  if (intent === "pending_decisions") {
+    const pending = getDecisions().filter((decision) => decision.status === "proposed");
+    if (pending.length === 0) {
+      return { intent, answer: "Not enough information.", references: [] };
+    }
+    pending.slice(0, 6).forEach((decision) => {
+      references.push({ type: "decision", id: decision.id, title: decision.title });
+    });
+    return {
+      intent,
+      answer: `There are ${pending.length} pending decision(s). Review ownership and next step for each.`,
+      references
+    };
+  }
 
-  return asResponse(
-    "pending_decisions",
-    decisions.map((item) => `${item.title} (${item.status ?? "proposed"})`).join("\n"),
-    decisions.map((item) => ({ type: "decision", id: item.id, title: item.title }))
-  );
+  const queuePending = repos.extractedItem
+    .list({ userId: "local-user", orgId: null })
+    .filter((item) => item.status === "pending").length;
+  return {
+    intent: "unknown",
+    answer: queuePending > 0 ? "Not enough information. Try a specific command." : "Not enough information.",
+    references: []
+  };
 }

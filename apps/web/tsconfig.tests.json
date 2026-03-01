@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./.tmp-tests",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "baseUrl": ".."
+  },
+  "include": [
+    "./tests/**/*.ts",
+    "./lib/storage/**/*.ts",
+    "./lib/services/extraction.ts",
+    "./lib/services/queue.ts",
+    "./lib/services/today.ts",
+    "./lib/services/tasks.ts",
+    "./lib/services/meetings.ts",
+    "./lib/services/sources.ts",
+    "./lib/services/decisions.ts",
+    "./lib/services/team.ts"
+  ],
+  "exclude": ["node_modules"]
+}

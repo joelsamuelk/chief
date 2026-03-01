@@ -1,57 +1,99 @@
-import type { Meeting } from "@chief/types";
-import type { AuthContext } from "@/lib/utils/auth";
-import { endOfDay, startOfDay } from "@/lib/utils/dates";
+import { getDefaultContext, getRepos } from "../storage";
+import type { CreateMeetingInput, UpdateMeetingInput } from "../storage";
+import { createSource, processSource } from "./sources";
+import { getTasks } from "./tasks";
 
-export async function getMeetingsForDate(context: AuthContext, date = new Date()): Promise<Meeting[]> {
-  const start = startOfDay(date).toISOString();
-  const end = endOfDay(date).toISOString();
+export type MeetingFilter = "all" | "upcoming" | "past";
 
-  const { data, error } = await context.supabase
-    .from("meetings")
-    .select("*")
-    .gte("start_time", start)
-    .lte("start_time", end)
-    .order("start_time", { ascending: true });
+export function getMeetings(filter: MeetingFilter = "all") {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const meetings = repos.meeting.list(context);
+  const now = new Date();
 
-  if (error) throw error;
-  return (data ?? []) as Meeting[];
+  if (filter === "upcoming") {
+    return meetings.filter((meeting) => new Date(meeting.start_time).getTime() >= now.getTime());
+  }
+  if (filter === "past") {
+    return meetings.filter((meeting) => new Date(meeting.end_time).getTime() < now.getTime());
+  }
+  return meetings;
 }
 
-function parseMeetingTimeFromQuery(query: string) {
-  const match = query.toLowerCase().match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
-  if (!match) return null;
-
-  let hour = Number(match[1]);
-  const minute = Number(match[2] ?? "0");
-  const period = match[3];
-  if (period === "pm" && hour < 12) hour += 12;
-  if (period === "am" && hour === 12) hour = 0;
-
-  const date = new Date();
-  date.setHours(hour, minute, 0, 0);
-  return date;
+export function getMeeting(meetingId: string) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const meeting = repos.meeting.getById(context, meetingId);
+  if (!meeting) throw new Error("Meeting not found.");
+  return meeting;
 }
 
-export async function getClosestMeetingForQuery(
-  context: AuthContext,
-  query: string,
-  explicitTime?: string
-): Promise<Meeting | null> {
-  const meetings = await getMeetingsForDate(context);
-  if (meetings.length === 0) return null;
+export function createMeeting(payload: CreateMeetingInput) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  return repos.meeting.create(context, payload);
+}
 
-  const explicit = explicitTime ? new Date(explicitTime) : null;
-  const queryTime = parseMeetingTimeFromQuery(query);
-  const target = explicit && !Number.isNaN(explicit.getTime()) ? explicit : queryTime;
+export function updateMeeting(meetingId: string, payload: UpdateMeetingInput) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const meeting = repos.meeting.update(context, meetingId, payload);
+  if (!meeting) throw new Error("Meeting not found.");
+  return meeting;
+}
 
-  if (!target) return meetings[0] ?? null;
+export function deleteMeeting(meetingId: string) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const ok = repos.meeting.delete(context, meetingId);
+  if (!ok) throw new Error("Meeting not found.");
+  return { ok: true };
+}
 
-  return (
-    meetings
-      .map((meeting) => ({
-        meeting,
-        distance: Math.abs(new Date(meeting.start_time).getTime() - target.getTime())
-      }))
-      .sort((a, b) => a.distance - b.distance)[0]?.meeting ?? null
-  );
+export function runExtractionOnMeetingNotes(meetingId: string) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const meeting = repos.meeting.getById(context, meetingId);
+  if (!meeting) throw new Error("Meeting not found.");
+  if (!meeting.notes || meeting.notes.trim().length === 0) {
+    throw new Error("Meeting notes are empty.");
+  }
+
+  const { source } = createSource({
+    kind: "meeting",
+    provider: "meeting_notes",
+    external_id: `meeting-${meeting.id}`,
+    raw_content: meeting.notes
+  });
+
+  const updatedMeeting = repos.meeting.update(context, meeting.id, { source_id: source.id });
+  const extraction = processSource(source.id);
+  return {
+    meeting: updatedMeeting,
+    source,
+    extracted_items: extraction.created
+  };
+}
+
+export function buildMeetingPreBrief(meetingId?: string) {
+  const meetings = getMeetings("upcoming");
+  const target = meetingId ? getMeeting(meetingId) : meetings[0] ?? null;
+  if (!target) {
+    return {
+      meeting: null,
+      linked_tasks: [],
+      previous_notes: null
+    };
+  }
+
+  const linkedTasks = getTasks("all").filter((task) => task.source_id === target.source_id);
+  const previous = getMeetings("past")
+    .filter((meeting) => meeting.title === target.title)
+    .sort((a, b) => b.start_time.localeCompare(a.start_time))[0];
+
+  return {
+    meeting: target,
+    linked_tasks: linkedTasks,
+    previous_notes: previous?.notes ?? null
+  };
 }

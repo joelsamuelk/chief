@@ -1,20 +1,11 @@
 "use client";
 
-import { getSupabaseClient } from "@chief/data";
 import { Card } from "@chief/ui/web";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage, type AppLanguage } from "../../../lib/language";
 
-interface ProfileState {
-  id: string;
-  email: string;
-  name: string;
-  avatar_url: string | null;
-}
-
-type Provider = "google" | "microsoft";
-type ExtendedProvider = Provider | "apple";
+type ExtendedProvider = "google" | "microsoft" | "apple";
 
 interface ToolConnection {
   provider: ExtendedProvider;
@@ -28,6 +19,13 @@ interface ToolConnectionAccount {
   provider: ExtendedProvider;
   provider_user_id: string;
   created_at: string;
+}
+
+interface ProfileState {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url: string | null;
 }
 
 function providerLabel(provider: ExtendedProvider) {
@@ -67,55 +65,27 @@ function emptyConnections(): ToolConnection[] {
 }
 
 export default function ProfilePage() {
-  const supabase = useMemo(() => getSupabaseClient(), []);
-  const localBuildMode = !supabase;
   const router = useRouter();
   const { language, setLanguage, spelling } = useLanguage();
 
   const [profile, setProfile] = useState<ProfileState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [signingOut, setSigningOut] = useState(false);
   const [toolsLoading, setToolsLoading] = useState(true);
   const [toolsError, setToolsError] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [connections, setConnections] = useState<ToolConnection[]>(emptyConnections());
   const [connectionAccounts, setConnectionAccounts] = useState<ToolConnectionAccount[]>([]);
 
-  async function getAccessToken() {
-    if (!supabase) throw new Error("Local build mode has no auth token.");
-    const { data } = await supabase.auth.getSession();
-    if (!data.session?.access_token) {
-      throw new Error("Authentication session is not ready. Refresh and try again.");
-    }
-    return data.session.access_token;
-  }
-
   async function loadConnections() {
     setToolsError(null);
     setToolsLoading(true);
-
-    if (!supabase) {
-      setConnections(emptyConnections());
-      setConnectionAccounts([]);
-      setToolsLoading(false);
-      return;
-    }
-
     try {
-      const token = await getAccessToken();
-      const response = await fetch("/api/inbox", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      const payload = (await response.json()) as
-        | {
-            connections?: ToolConnection[];
-            connection_accounts?: ToolConnectionAccount[];
-            error?: { message?: string };
-          };
+      const response = await fetch("/api/inbox", { method: "GET", cache: "no-store" });
+      const payload = (await response.json()) as {
+        connections?: ToolConnection[];
+        connection_accounts?: ToolConnectionAccount[];
+        error?: { message?: string };
+      };
 
       if (!response.ok) {
         throw new Error(payload.error?.message ?? "Unable to load tools.");
@@ -154,44 +124,23 @@ export default function ProfilePage() {
     let active = true;
 
     async function loadProfile() {
-      if (!supabase) {
-        if (active) {
-          setProfile({
+      try {
+        const response = await fetch("/api/profile", { method: "GET", cache: "no-store" });
+        const payload = (await response.json()) as {
+          profile?: ProfileState;
+        };
+
+        if (!active) return;
+        setProfile(
+          payload.profile ?? {
             id: "local-user",
             email: "local@chief.app",
-            name: "Local Build",
+            name: "Executive",
             avatar_url: null
-          });
-          setLoading(false);
-        }
-        return;
-      }
-
-      const { data } = await supabase.auth.getUser();
-      if (!active) return;
-
-      const user = data.user;
-      setProfile(
-        user
-          ? {
-              id: user.id,
-              email: user.email ?? "",
-              name:
-                (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name.trim()) ||
-                (typeof user.user_metadata?.name === "string" && user.user_metadata.name.trim()) ||
-                user.email?.split("@")[0] ||
-                "Profile",
-              avatar_url:
-                (typeof user.user_metadata?.avatar_url === "string" && user.user_metadata.avatar_url.trim()) ||
-                (typeof user.user_metadata?.picture === "string" && user.user_metadata.picture.trim()) ||
-                null
-            }
-          : null
-      );
-      setLoading(false);
-
-      if (!user) {
-        router.replace("/");
+          }
+        );
+      } finally {
+        if (active) setLoading(false);
       }
     }
 
@@ -201,27 +150,20 @@ export default function ProfilePage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, []);
 
   async function updateConnection(
     provider: ExtendedProvider,
     action: "connect" | "disconnect",
     options?: { connection_id?: string; provider_user_id?: string }
   ) {
-    if (!supabase) {
-      setToolsError("Tool connections are paused in local build mode.");
-      return;
-    }
-
     setToolsError(null);
     setSavingKey(options?.connection_id ? `${provider}:${options.connection_id}` : `${provider}:${action}`);
     try {
-      const token = await getAccessToken();
       const response = await fetch("/api/inbox/connect", {
         method: "POST",
         headers: {
-          "content-type": "application/json",
-          Authorization: `Bearer ${token}`
+          "content-type": "application/json"
         },
         body: JSON.stringify({
           provider,
@@ -241,14 +183,6 @@ export default function ProfilePage() {
     } finally {
       setSavingKey(null);
     }
-  }
-
-  async function signOut() {
-    setSigningOut(true);
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
-    router.replace("/");
   }
 
   if (loading) {
@@ -291,9 +225,7 @@ export default function ProfilePage() {
         <div className="rounded-[14px] border border-black/10 p-4">
           <div className="mb-2">
             <p className="text-[13px] font-medium uppercase tracking-[0.08em] text-textSecondary">Language</p>
-            <p className="text-[12px] text-textSecondary">
-              Choose app language and spelling preferences.
-            </p>
+            <p className="text-[12px] text-textSecondary">Choose app language and spelling preferences.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <label htmlFor="app-language" className="text-[13px] font-medium text-textPrimary">
@@ -309,34 +241,24 @@ export default function ProfilePage() {
               <option value="en-US">English (US)</option>
             </select>
           </div>
-          <p className="mt-2 text-[12px] text-textTertiary">
-            Current spelling: {spelling("centralized", "centralised")}
-          </p>
+          <p className="mt-2 text-[12px] text-textTertiary">Current spelling: {spelling("centralized", "centralised")}</p>
         </div>
 
         <div className="rounded-[14px] border border-black/10 p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <p className="text-[13px] font-medium uppercase tracking-[0.08em] text-textSecondary">Tools</p>
-              <p className="text-[12px] text-textSecondary">
-                Connect messaging tools and calendars in one place.
-              </p>
+              <p className="text-[12px] text-textSecondary">Connect messaging tools and calendars in one place.</p>
             </div>
             <button
               type="button"
               onClick={() => void loadConnections()}
-              disabled={localBuildMode || toolsLoading || Boolean(savingKey)}
+              disabled={toolsLoading || Boolean(savingKey)}
               className="h-8 rounded-pill bg-chipBg px-3 text-[12px] font-medium text-textSecondary disabled:opacity-70"
             >
               {toolsLoading ? "Loading..." : "Refresh"}
             </button>
           </div>
-
-          {localBuildMode ? (
-            <p className="mb-2 text-[12px] text-textSecondary">
-              Supabase integrations are paused in local build mode.
-            </p>
-          ) : null}
 
           {toolsError ? <p className="mb-2 text-[12px] font-medium text-[#b42318]">{toolsError}</p> : null}
 
@@ -361,7 +283,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => void updateConnection(item.provider, "connect")}
-                        disabled={localBuildMode || busyAdd || toolsLoading}
+                        disabled={busyAdd || toolsLoading}
                         className="h-9 rounded-pill bg-chipActiveBg px-3 text-[12px] font-medium text-chipActiveText disabled:opacity-70"
                       >
                         {busyAdd ? "Adding..." : "Add account"}
@@ -370,7 +292,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => void updateConnection(item.provider, "disconnect")}
-                          disabled={localBuildMode || busyDisconnectAll || toolsLoading}
+                          disabled={busyDisconnectAll || toolsLoading}
                           className="h-9 rounded-pill bg-[#FBE9EA] px-3 text-[12px] font-medium text-[#A12A32] disabled:opacity-70"
                         >
                           {busyDisconnectAll ? "Updating..." : "Disconnect all"}
@@ -399,7 +321,7 @@ export default function ProfilePage() {
                                   connection_id: account.id
                                 })
                               }
-                              disabled={localBuildMode || busyDisconnect || toolsLoading}
+                              disabled={busyDisconnect || toolsLoading}
                               className="h-8 rounded-pill bg-[#FBE9EA] px-3 text-[11px] font-medium text-[#A12A32] disabled:opacity-70"
                             >
                               {busyDisconnect ? "..." : "Disconnect"}
@@ -418,11 +340,10 @@ export default function ProfilePage() {
         <div className="pt-2">
           <button
             type="button"
-            onClick={() => void signOut()}
-            disabled={signingOut}
-            className="h-11 rounded-[12px] bg-[#111418] px-5 text-[14px] font-semibold text-white transition hover:bg-black disabled:opacity-70"
+            onClick={() => router.replace("/")}
+            className="h-11 rounded-[12px] bg-[#111418] px-5 text-[14px] font-semibold text-white transition hover:bg-black"
           >
-            {signingOut ? "Signing out..." : "Sign out"}
+            Exit workspace
           </button>
         </div>
       </Card>

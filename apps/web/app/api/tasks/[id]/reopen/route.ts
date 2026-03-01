@@ -1,9 +1,11 @@
-import { reopenTask } from "@/lib/services/task-service";
-import { jsonOk, withAuthedRoute } from "@/lib/server/http";
+import { reopenTask } from "@/lib/services/tasks";
+import { jsonError, jsonOk } from "@/lib/server/http";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  return withAuthedRoute(request, async (context) => {
-    const task = await reopenTask(context, params.id);
+  try {
+    const task = reopenTask(params.id);
     return jsonOk({ task });
-  });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

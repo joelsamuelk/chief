@@ -1,9 +1,11 @@
-import { detectRisks } from "@/lib/services/risk-service";
-import { jsonOk, withAuthedRoute } from "@/lib/server/http";
+import { detectRisks } from "@/lib/services/today";
+import { jsonError, jsonOk } from "@/lib/server/http";
 
 export async function GET(request: Request) {
-  return withAuthedRoute(request, async (context) => {
-    const risks = await detectRisks(context);
+  try {
+    const risks = detectRisks();
     return jsonOk({ risks });
-  });
+  } catch (error) {
+    return jsonError(error);
+  }
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { getSupabaseClient } from "@chief/data";
 import { Card } from "@chief/ui/web";
 import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "../../../lib/language";
@@ -62,8 +61,6 @@ function toErrorMessage(err: unknown, fallback: string) {
 }
 
 export default function InboxPage() {
-  const supabase = useMemo(() => getSupabaseClient(), []);
-  const localBuildMode = !supabase;
   const { spelling } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,49 +76,15 @@ export default function InboxPage() {
     items: []
   });
 
-  async function getToken() {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { data } = await supabase.auth.getSession();
-    if (!data.session?.access_token) {
-      throw new Error("Authentication session is not ready. Refresh and try again.");
-    }
-    return data.session.access_token;
-  }
-
   async function loadOverview() {
     setError(null);
     setLoading(true);
-
-    if (!supabase) {
-      setOverview({
-        connections: [],
-        connection_accounts: [],
-        queue_count: 0,
-        items: []
-      });
-      setLoading(false);
-      return;
-    }
-
     try {
-      const token = await getToken();
-      const response = await fetch("/api/inbox", {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      const payload = (await response.json()) as
-        | InboxOverview
-        | { error?: { message?: string } };
-
+      const response = await fetch("/api/inbox", { method: "GET", cache: "no-store" });
+      const payload = (await response.json()) as InboxOverview | { error?: { message?: string } };
       if (!response.ok) {
-        throw new Error(
-          (payload as { error?: { message?: string } })?.error?.message ?? "Unable to load inbox."
-        );
+        throw new Error((payload as { error?: { message?: string } })?.error?.message ?? "Unable to load inbox.");
       }
-
       setOverview(payload as InboxOverview);
     } catch (err) {
       setError(toErrorMessage(err, "Unable to load inbox."));
@@ -132,7 +95,6 @@ export default function InboxPage() {
 
   useEffect(() => {
     void loadOverview();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connectedAccountCount = overview.connection_accounts.length;
@@ -187,11 +149,6 @@ export default function InboxPage() {
       </div>
 
       {error ? <p className="text-[13px] font-medium text-[#b42318]">{error}</p> : null}
-      {localBuildMode ? (
-        <p className="text-[13px] text-textSecondary">
-          Supabase-backed messaging ingestion is paused in local build mode.
-        </p>
-      ) : null}
 
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -199,7 +156,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => void loadOverview()}
-            disabled={localBuildMode || loading}
+            disabled={loading}
             className="h-9 rounded-pill bg-chipBg px-3 text-[12px] font-medium text-textSecondary disabled:opacity-70"
           >
             {loading ? "Refreshing..." : "Refresh"}
@@ -269,9 +226,7 @@ export default function InboxPage() {
           {pagedItems.map((item) => (
             <div key={item.id} className="rounded-[12px] border border-divider p-3">
               <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px]">
-                <span className="rounded-pill bg-chipBg px-2 py-1 text-textSecondary">
-                  {providerLabel(item.provider)}
-                </span>
+                <span className="rounded-pill bg-chipBg px-2 py-1 text-textSecondary">{providerLabel(item.provider)}</span>
                 <span className="rounded-pill bg-chipBg px-2 py-1 text-textSecondary">{item.kind}</span>
                 <span className="text-textTertiary">{formatDate(item.created_at)}</span>
                 <span className={item.processed_at ? "text-[#106C2A]" : "text-[#A16207]"}>

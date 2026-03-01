@@ -1,31 +1,18 @@
 import { jsonError, jsonOk } from "@/lib/server/http";
 import { searchMemory } from "@/lib/services/memory";
-import { requireAuth } from "@/lib/utils/auth";
-import {
-  memorySearchSchema,
-  parseWithSchema,
-  type MemorySearchPayload
-} from "@/lib/utils/validation";
 
 export async function GET(request: Request) {
   try {
-    const context = await requireAuth(request);
     const { searchParams } = new URL(request.url);
-    const payload = parseWithSchema<MemorySearchPayload>(
-      memorySearchSchema as {
-        safeParse: (value: unknown) => {
-          success: boolean;
-          data: MemorySearchPayload;
-          error?: { flatten: () => unknown };
-        };
-      },
-      {
-        q: searchParams.get("q"),
-        limit: searchParams.get("limit") ?? undefined
-      }
-    );
-    const results = await searchMemory(context, payload.q, payload.limit);
-    return jsonOk({ results });
+    const q = (searchParams.get("q") ?? "").trim();
+    const results = searchMemory(q);
+    const grouped = results.reduce<Record<string, typeof results>>((acc, item) => {
+      const current = acc[item.type] ?? [];
+      current.push(item);
+      acc[item.type] = current;
+      return acc;
+    }, {});
+    return jsonOk({ results, grouped });
   } catch (error) {
     return jsonError(error);
   }
