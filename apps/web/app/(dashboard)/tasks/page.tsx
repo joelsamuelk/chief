@@ -11,6 +11,10 @@ import { formatTimeRange } from "../../../lib/format";
 type Filter = "all" | "today" | "overdue" | "upcoming" | "waiting" | "completed" | "archived";
 type PageSize = 10 | 20 | 50;
 
+function isFilter(value: string | null): value is Filter {
+  return value === "all" || value === "today" || value === "overdue" || value === "upcoming" || value === "waiting" || value === "completed" || value === "archived";
+}
+
 function getStatusStyle(status: Task["status"]) {
   if (status === "done" || status === "completed") {
     return {
@@ -70,6 +74,29 @@ export default function TasksPage() {
     void createNew();
     router.replace(pathname || "/app/tasks");
   }, [createNew, pathname, router, searchParams]);
+
+  useEffect(() => {
+    const nextFilter = searchParams.get("filter");
+    if (!isFilter(nextFilter) || nextFilter === filter) return;
+    setFilter(nextFilter);
+    setPage(1);
+  }, [filter, searchParams]);
+
+  useEffect(() => {
+    const taskId = searchParams.get("task_id");
+    if (!taskId) return;
+
+    const matched = tasks.find((task) => task.id === taskId);
+    if (!matched) return;
+
+    setSelectedTask(matched);
+    setEditorOpen(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("task_id");
+    const next = params.toString();
+    router.replace(next.length > 0 ? `${pathname}?${next}` : pathname || "/app/tasks");
+  }, [pathname, router, searchParams, tasks]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages));

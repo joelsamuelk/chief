@@ -19,17 +19,49 @@ interface AssistReference {
   title: string;
 }
 
+interface AssistAppContext {
+  path?: string;
+  section?: string;
+}
+
 function detectIntent(query: string): AssistIntent {
   const q = query.toLowerCase();
   if (q.includes("waiting") || q.includes("wait")) return "waiting_on";
   if (q.includes("risk")) return "at_risk";
   if (q.includes("summarize") || q.includes("summary") || q.includes("today")) return "summarize_today";
   if (q.includes("prepare") || q.includes("meeting")) return "prepare_meeting";
-  if (q.includes("decision")) return "pending_decisions";
+  if (q.includes("decision") || q.includes("approve") || q.includes("implement")) return "pending_decisions";
   return "unknown";
 }
 
-export function handleAssistQuery(query: string, meetingId?: string) {
+function contextHint(context?: AssistAppContext) {
+  const section = context?.section?.toLowerCase();
+  const path = context?.path?.toLowerCase() ?? "";
+
+  if (section === "tasks" || path.includes("/tasks")) {
+    return "You are on Tasks. Try: \"What am I waiting on?\" or \"What is at risk?\"";
+  }
+
+  if (section === "decisions" || path.includes("/decisions")) {
+    return "You are on Decisions. Try: \"Show pending decisions.\"";
+  }
+
+  if (section === "meetings" || path.includes("/meetings")) {
+    return "You are on Meetings. Try: \"Prepare me for my next meeting.\"";
+  }
+
+  if (section === "today" || path.includes("/today")) {
+    return "You are on Today. Try: \"Summarize today.\"";
+  }
+
+  if (section === "queue" || path.includes("/queue")) {
+    return "You are on Queue. Try: \"What is at risk?\" to prioritize incoming items.";
+  }
+
+  return "Try one of these: What am I waiting on? What is at risk? Summarize today. Prepare me for my next meeting.";
+}
+
+export function handleAssistQuery(query: string, meetingId?: string, appContext?: AssistAppContext) {
   const intent = detectIntent(query);
   const repos = getRepos();
   const references: AssistReference[] = [];
@@ -125,9 +157,14 @@ export function handleAssistQuery(query: string, meetingId?: string) {
   const queuePending = repos.extractedItem
     .list({ userId: "local-user", orgId: null })
     .filter((item) => item.status === "pending").length;
+
+  const hint = contextHint(appContext);
   return {
     intent: "unknown",
-    answer: queuePending > 0 ? "Not enough information. Try a specific command." : "Not enough information.",
+    answer:
+      queuePending > 0
+        ? `Not enough information. ${hint} There are ${queuePending} queue item(s) pending.`
+        : `Not enough information. ${hint}`,
     references: []
   };
 }

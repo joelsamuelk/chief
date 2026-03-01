@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@chief/ui/web";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatTimeRange } from "@/lib/format";
 
@@ -32,6 +33,7 @@ interface RiskRow {
   title: string;
   detail: string;
   severity: string;
+  source_id?: string;
 }
 
 interface TodayPayload {
@@ -50,7 +52,32 @@ function formatDate(input: string | null) {
   return date.toLocaleDateString();
 }
 
+function riskHref(risk: RiskRow) {
+  if (risk.kind === "overdue") {
+    return risk.source_id ? `/app/tasks?filter=overdue&task_id=${risk.source_id}` : "/app/tasks?filter=overdue";
+  }
+
+  if (risk.kind === "delegation_stuck" || risk.kind === "delegated_stuck") {
+    return risk.source_id ? `/app/tasks?filter=waiting&task_id=${risk.source_id}` : "/app/tasks?filter=waiting";
+  }
+
+  if (risk.kind === "snoozed") {
+    return "/app/queue";
+  }
+
+  return null;
+}
+
+function riskTargetHint(risk: RiskRow) {
+  if (risk.kind === "snoozed") return "Opens Queue";
+  if (risk.kind === "overdue" || risk.kind === "delegation_stuck" || risk.kind === "delegated_stuck") {
+    return "Opens Tasks";
+  }
+  return "";
+}
+
 export default function TodayBriefPage() {
+  const router = useRouter();
   const [data, setData] = useState<TodayPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +143,12 @@ export default function TodayBriefPage() {
         </div>
         <div className="space-y-2">
           {data.top_priorities.map((priority) => (
-            <div key={priority.task_id} className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3">
+            <button
+              key={priority.task_id}
+              type="button"
+              onClick={() => router.push(`/app/tasks?task_id=${priority.task_id}`)}
+              className="w-full rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-left transition hover:bg-[#F2F4F7]"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[14px] font-semibold text-textPrimary">{priority.title}</p>
@@ -124,7 +156,7 @@ export default function TodayBriefPage() {
                 </div>
                 <span className="rounded-pill bg-chipBg px-2 py-1 text-[11px] text-textSecondary">Score {priority.score}</span>
               </div>
-            </div>
+            </button>
           ))}
           {data.top_priorities.length === 0 ? (
             <div className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-[13px] text-textSecondary">
@@ -139,10 +171,15 @@ export default function TodayBriefPage() {
           <p className="mb-3 text-[16px] font-semibold">Overdue tasks</p>
           <div className="space-y-2">
             {data.overdue.map((task) => (
-              <div key={task.id} className="rounded-[12px] border border-black/10 bg-[#FFF6F7] p-3">
+              <button
+                key={task.id}
+                type="button"
+                onClick={() => router.push(`/app/tasks?filter=overdue&task_id=${task.id}`)}
+                className="w-full rounded-[12px] border border-black/10 bg-[#FFF6F7] p-3 text-left transition hover:bg-[#FFEFF2]"
+              >
                 <p className="text-[13px] font-semibold text-textPrimary">{task.title}</p>
                 <p className="text-[12px] text-textSecondary">Due {formatDate(task.due_at)}</p>
-              </div>
+              </button>
             ))}
             {data.overdue.length === 0 ? (
               <div className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-[13px] text-textSecondary">
@@ -156,10 +193,15 @@ export default function TodayBriefPage() {
           <p className="mb-3 text-[16px] font-semibold">Today&apos;s meetings</p>
           <div className="space-y-2">
             {data.meetings_today.map((meeting) => (
-              <div key={meeting.id} className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3">
+              <button
+                key={meeting.id}
+                type="button"
+                onClick={() => router.push(`/app/meetings?filter=all&meeting_id=${meeting.id}`)}
+                className="w-full rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-left transition hover:bg-[#F2F4F7]"
+              >
                 <p className="text-[13px] font-semibold text-textPrimary">{meeting.title}</p>
                 <p className="text-[12px] text-textSecondary">{formatTimeRange(meeting.start_time, meeting.end_time)}</p>
-              </div>
+              </button>
             ))}
             {data.meetings_today.length === 0 ? (
               <div className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-[13px] text-textSecondary">
@@ -173,12 +215,31 @@ export default function TodayBriefPage() {
       <Card className="border border-black/10 p-4 shadow-none">
         <p className="mb-3 text-[16px] font-semibold">Risks</p>
         <div className="space-y-2">
-          {data.risks.map((risk) => (
-            <div key={`${risk.kind}-${risk.title}`} className="rounded-[12px] border border-black/10 bg-[#FFF9F2] p-3">
-              <p className="text-[13px] font-semibold text-textPrimary">{risk.title}</p>
-              <p className="text-[12px] text-textSecondary">{risk.detail}</p>
-            </div>
-          ))}
+          {data.risks.map((risk) => {
+            const href = riskHref(risk);
+
+            if (!href) {
+              return (
+                <div key={`${risk.kind}-${risk.title}`} className="rounded-[12px] border border-black/10 bg-[#FFF9F2] p-3">
+                  <p className="text-[13px] font-semibold text-textPrimary">{risk.title}</p>
+                  <p className="text-[12px] text-textSecondary">{risk.detail}</p>
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={`${risk.kind}-${risk.title}`}
+                type="button"
+                onClick={() => router.push(href)}
+                className="w-full rounded-[12px] border border-black/10 bg-[#FFF9F2] p-3 text-left transition hover:bg-[#FFF4E8]"
+              >
+                <p className="text-[13px] font-semibold text-textPrimary">{risk.title}</p>
+                <p className="text-[12px] text-textSecondary">{risk.detail}</p>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.08em] text-textTertiary">{riskTargetHint(risk)}</p>
+              </button>
+            );
+          })}
           {data.risks.length === 0 ? (
             <div className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-[13px] text-textSecondary">
               No risk signals detected.

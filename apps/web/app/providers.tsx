@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { FloatingAssist } from "../components/floating-assist";
 import { LanguageProvider } from "../lib/language";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <LanguageProvider>
       <QueryClientProvider client={queryClient}>
         {children}
+        <FloatingAssist />
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     </LanguageProvider>

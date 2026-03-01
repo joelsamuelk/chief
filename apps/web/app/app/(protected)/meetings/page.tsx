@@ -1,11 +1,15 @@
 "use client";
 
 import { Card, Chip } from "@chief/ui/web";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatTimeRange } from "@/lib/format";
 
 type MeetingFilter = "all" | "upcoming" | "past";
+
+function isMeetingFilter(value: string | null): value is MeetingFilter {
+  return value === "all" || value === "upcoming" || value === "past";
+}
 
 interface Meeting {
   id: string;
@@ -29,6 +33,7 @@ function toInputValue(value: string) {
 }
 
 export default function MeetingsPage() {
+  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<MeetingFilter>("upcoming");
@@ -81,6 +86,27 @@ export default function MeetingsPage() {
     anchor?.scrollIntoView({ behavior: "smooth", block: "start" });
     router.replace("/app/meetings");
   }, [router, searchParams]);
+
+  useEffect(() => {
+    const nextFilter = searchParams.get("filter");
+    if (!isMeetingFilter(nextFilter) || nextFilter === filter) return;
+    setFilter(nextFilter);
+  }, [filter, searchParams]);
+
+  useEffect(() => {
+    const meetingId = searchParams.get("meeting_id");
+    if (!meetingId) return;
+
+    const matched = meetings.find((meeting) => meeting.id === meetingId);
+    if (!matched) return;
+
+    setSelectedId(matched.id);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("meeting_id");
+    const next = params.toString();
+    router.replace(next.length > 0 ? `${pathname}?${next}` : pathname || "/app/meetings");
+  }, [meetings, pathname, router, searchParams]);
 
   useEffect(() => {
     let active = true;

@@ -8,7 +8,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050507]">
       <div className="pointer-events-none absolute -top-20 right-20 h-72 w-72 rounded-full bg-white/5 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-10 left-10 h-64 w-64 rounded-full bg-[#B994FF]/10 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-10 left-10 h-64 w-64 rounded-full bg-black/10 blur-3xl" />
 
       <div className="relative min-h-screen bg-[#F4F5F7] p-3 sm:p-4 lg:p-5 xl:grid xl:grid-cols-[88px_minmax(0,1fr)] xl:gap-4 2xl:grid-cols-[88px_minmax(0,1fr)_320px]">
           <div className="xl:hidden">

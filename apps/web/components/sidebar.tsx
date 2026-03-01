@@ -131,6 +131,11 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(`${href}/`);
 }
 
+function compactLabel(label: string) {
+  if (label === "Action Queue") return "Queue";
+  return label;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -162,7 +167,7 @@ export function Sidebar() {
       <aside className="hidden min-h-full flex-col rounded-[24px] bg-[#0A0A0D] px-2 py-4 xl:flex">
         <div className="mb-6 flex justify-center">
           <div className="grid h-12 w-12 place-items-center rounded-[14px] bg-white/10">
-            <BrandGlyph className="h-8 w-8 text-[#B994FF]" ringClassName="border-[1.8px]" />
+            <BrandGlyph className="h-8 w-8 text-white" ringClassName="border-[1.8px]" />
           </div>
         </div>
 
@@ -175,13 +180,16 @@ export function Sidebar() {
                 href={link.href}
                 aria-label={link.label}
                 title={link.label}
-                className={`grid h-12 w-full place-items-center rounded-[14px] transition ${
+                className={`flex h-[58px] w-full flex-col items-center justify-center rounded-[14px] transition ${
                   active
                     ? "bg-white text-[#0A0A0D] shadow-[0_8px_20px_rgba(0,0,0,0.22)]"
                     : "text-white/80 hover:bg-white/10"
                 }`}
               >
                 <NavIcon name={link.icon} active={active} />
+                <span className="mt-1 text-[9px] font-medium leading-none tracking-[0.02em]">
+                  {compactLabel(link.label)}
+                </span>
               </Link>
             );
           })}
