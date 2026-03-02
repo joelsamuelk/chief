@@ -166,6 +166,97 @@ export function createInitiative(payload: {
   });
 }
 
+export function updateOutcome(payload: { id: string; title?: string; description?: string | null; status?: Outcome["status"] }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  return repos.outcome.update(context, payload.id, {
+    title: payload.title,
+    description: payload.description,
+    status: payload.status
+  });
+}
+
+export function deleteOutcome(payload: { id: string }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const objectives = repos.objective.listByOutcome(context, payload.id);
+  for (const objective of objectives) {
+    deleteObjective({ id: objective.id });
+  }
+  return repos.outcome.delete(context, payload.id);
+}
+
+export function updateObjective(payload: { id: string; title?: string; description?: string | null }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  return repos.objective.update(context, payload.id, {
+    title: payload.title,
+    description: payload.description
+  });
+}
+
+export function deleteObjective(payload: { id: string }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const keyResults = repos.keyResult.listByObjective(context, payload.id);
+  for (const keyResult of keyResults) {
+    deleteKeyResult({ id: keyResult.id });
+  }
+  return repos.objective.delete(context, payload.id);
+}
+
+export function updateKeyResult(payload: {
+  id: string;
+  metric_name?: string;
+  target_value?: number;
+  current_value?: number;
+  status?: KeyResultStatus;
+}) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  return repos.keyResult.update(context, payload.id, {
+    metric_name: payload.metric_name,
+    target_value: payload.target_value,
+    current_value: payload.current_value,
+    status: payload.status
+  });
+}
+
+export function deleteKeyResult(payload: { id: string }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const initiatives = repos.initiative.listByKeyResult(context, payload.id);
+  for (const initiative of initiatives) {
+    deleteInitiative({ id: initiative.id });
+  }
+  return repos.keyResult.delete(context, payload.id);
+}
+
+export function updateInitiative(payload: {
+  id: string;
+  title?: string;
+  description?: string | null;
+  status?: Initiative["status"];
+}) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  return repos.initiative.update(context, payload.id, {
+    title: payload.title,
+    description: payload.description,
+    status: payload.status
+  });
+}
+
+export function deleteInitiative(payload: { id: string }) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const tasks = repos.task.list(context).filter((task) => task.initiative_id === payload.id);
+  for (const task of tasks) {
+    repos.task.update(context, task.id, { initiative_id: null });
+  }
+  return repos.initiative.delete(context, payload.id);
+}
+
 export function listInitiatives() {
   const repos = getRepos();
   const context = getDefaultContext();

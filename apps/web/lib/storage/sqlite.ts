@@ -135,6 +135,7 @@ function mapWorkspaceMember(row: SqlRecord): WorkspaceMember {
     workspace_id: String(row.workspace_id),
     user_id: String(row.user_id),
     role: row.role as WorkspaceRole,
+    department: row.department ? String(row.department) : null,
     created_at: String(row.created_at)
   };
 }
@@ -382,6 +383,7 @@ function bootstrap(db: DatabaseSync) {
       workspace_id text not null,
       user_id text not null,
       role text not null,
+      department text,
       created_at text not null
     );
     create unique index if not exists idx_workspace_members_unique on workspace_members(workspace_id, user_id);
@@ -607,6 +609,7 @@ function bootstrap(db: DatabaseSync) {
   ensureColumn(db, "checkins", "workspace_id", "text");
   ensureColumn(db, "today_snapshots", "workspace_id", "text");
   ensureColumn(db, "digests", "workspace_id", "text");
+  ensureColumn(db, "workspace_members", "department", "text");
 
   db.exec(`
     drop index if exists idx_today_unique;
@@ -656,11 +659,14 @@ function bootstrap(db: DatabaseSync) {
     .prepare(`select id from workspace_members where workspace_id = ? and user_id = ? limit 1`)
     .get(personalWorkspaceId, "local-user") as SqlRecord | undefined;
   if (!ownerMember) {
-    db.prepare(`insert into workspace_members (id, workspace_id, user_id, role, created_at) values (?, ?, ?, ?, ?)`).run(
+    db.prepare(
+      `insert into workspace_members (id, workspace_id, user_id, role, department, created_at) values (?, ?, ?, ?, ?, ?)`
+    ).run(
       randomUUID(),
       personalWorkspaceId,
       "local-user",
       "owner",
+      null,
       nowIso()
     );
   }
@@ -825,11 +831,40 @@ function createWorkspaceRepo(db: DatabaseSync): WorkspaceRepo {
         createdAt
       );
       db.prepare(
-        `insert into workspace_members (id, workspace_id, user_id, role, created_at) values (?, ?, ?, ?, ?)`
-      ).run(randomUUID(), id, userId, "owner", createdAt);
+        `insert into workspace_members (id, workspace_id, user_id, role, department, created_at) values (?, ?, ?, ?, ?, ?)`
+      ).run(randomUUID(), id, userId, "owner", null, createdAt);
       const row = db.prepare(`select * from workspaces where id = ?`).get(id) as SqlRecord | undefined;
       if (!row) throw new Error("Unable to load workspace after creation.");
       return mapWorkspace(row);
+    },
+    updateName(id, name) {
+      db.prepare(`update workspaces set name = ? where id = ?`).run(name, id);
+      const row = db.prepare(`select * from workspaces where id = ?`).get(id) as SqlRecord | undefined;
+      return row ? mapWorkspace(row) : null;
+    },
+    delete(id) {
+      db.exec("begin");
+      try {
+        db.prepare(`delete from workspace_members where workspace_id = ?`).run(id);
+        db.prepare(`delete from sources where workspace_id = ?`).run(id);
+        db.prepare(`delete from extracted_items where workspace_id = ?`).run(id);
+        db.prepare(`delete from tasks where workspace_id = ?`).run(id);
+        db.prepare(`delete from meetings where workspace_id = ?`).run(id);
+        db.prepare(`delete from decisions where workspace_id = ?`).run(id);
+        db.prepare(`delete from outcomes where workspace_id = ?`).run(id);
+        db.prepare(`delete from objectives where workspace_id = ?`).run(id);
+        db.prepare(`delete from key_results where workspace_id = ?`).run(id);
+        db.prepare(`delete from initiatives where workspace_id = ?`).run(id);
+        db.prepare(`delete from checkins where workspace_id = ?`).run(id);
+        db.prepare(`delete from today_snapshots where workspace_id = ?`).run(id);
+        db.prepare(`delete from digests where workspace_id = ?`).run(id);
+        const result = db.prepare(`delete from workspaces where id = ?`).run(id);
+        db.exec("commit");
+        return Number(result.changes ?? 0) > 0;
+      } catch (error) {
+        db.exec("rollback");
+        throw error;
+      }
     }
   };
 }
@@ -842,23 +877,30 @@ function createWorkspaceMemberRepo(db: DatabaseSync): WorkspaceMemberRepo {
         .all(workspaceId) as SqlRecord[];
       return rows.map(mapWorkspaceMember);
     },
-    add(workspaceId, userId, role) {
+    add(workspaceId, userId, role, department = null) {
       const existing = this.findByWorkspaceUser(workspaceId, userId);
       if (existing) return existing;
       const id = randomUUID();
       const createdAt = nowIso();
-      db.prepare(`insert into workspace_members (id, workspace_id, user_id, role, created_at) values (?, ?, ?, ?, ?)`).run(
-        id,
-        workspaceId,
-        userId,
-        role,
-        createdAt
-      );
+      db.prepare(
+        `insert into workspace_members (id, workspace_id, user_id, role, department, created_at) values (?, ?, ?, ?, ?, ?)`
+      ).run(id, workspaceId, userId, role, department, createdAt);
       const row = db.prepare(`select * from workspace_members where id = ?`).get(id) as SqlRecord | undefined;
       if (!row) {
-        return { id, workspace_id: workspaceId, user_id: userId, role, created_at: createdAt };
+        return { id, workspace_id: workspaceId, user_id: userId, role, department, created_at: createdAt };
       }
       return mapWorkspaceMember(row);
+    },
+    updateDepartment(workspaceId, memberId, department) {
+      db.prepare(`update workspace_members set department = ? where workspace_id = ? and id = ?`).run(
+        department,
+        workspaceId,
+        memberId
+      );
+      const row = db
+        .prepare(`select * from workspace_members where workspace_id = ? and id = ? limit 1`)
+        .get(workspaceId, memberId) as SqlRecord | undefined;
+      return row ? mapWorkspaceMember(row) : null;
     },
     findByWorkspaceUser(workspaceId, userId) {
       const row = db
@@ -1460,6 +1502,12 @@ function createOutcomeRepo(db: DatabaseSync): OutcomeRepo {
         where user_id = ? and workspace_id = ? and id = ?
       `).run(next.title, next.description, next.quarter, next.owner_id, next.status, context.userId, context.workspaceId, id);
       return this.getById(context, id);
+    },
+    delete(context, id) {
+      const result = db
+        .prepare(`delete from outcomes where user_id = ? and workspace_id = ? and id = ?`)
+        .run(context.userId, context.workspaceId, id);
+      return Number(result.changes ?? 0) > 0;
     }
   };
 }
@@ -1501,6 +1549,23 @@ function createObjectiveRepo(db: DatabaseSync): ObjectiveRepo {
         nowIso()
       );
       return this.getById(context, id)!;
+    },
+    update(context, id, patch) {
+      const current = this.getById(context, id);
+      if (!current) return null;
+      const next = { ...current, ...patch };
+      db.prepare(`
+        update objectives
+        set title = ?, description = ?
+        where user_id = ? and workspace_id = ? and id = ?
+      `).run(next.title, next.description, context.userId, context.workspaceId, id);
+      return this.getById(context, id);
+    },
+    delete(context, id) {
+      const result = db
+        .prepare(`delete from objectives where user_id = ? and workspace_id = ? and id = ?`)
+        .run(context.userId, context.workspaceId, id);
+      return Number(result.changes ?? 0) > 0;
     }
   };
 }
@@ -1568,6 +1633,12 @@ function createKeyResultRepo(db: DatabaseSync): KeyResultRepo {
         id
       );
       return this.getById(context, id);
+    },
+    delete(context, id) {
+      const result = db
+        .prepare(`delete from key_results where user_id = ? and workspace_id = ? and id = ?`)
+        .run(context.userId, context.workspaceId, id);
+      return Number(result.changes ?? 0) > 0;
     }
   };
 }
@@ -1621,6 +1692,12 @@ function createInitiativeRepo(db: DatabaseSync): InitiativeRepo {
         where user_id = ? and workspace_id = ? and id = ?
       `).run(next.title, next.description, next.status, context.userId, context.workspaceId, id);
       return this.getById(context, id);
+    },
+    delete(context, id) {
+      const result = db
+        .prepare(`delete from initiatives where user_id = ? and workspace_id = ? and id = ?`)
+        .run(context.userId, context.workspaceId, id);
+      return Number(result.changes ?? 0) > 0;
     }
   };
 }
@@ -1730,11 +1807,14 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
         "local-user",
         now
       );
-      db.prepare(`insert into workspace_members (id, workspace_id, user_id, role, created_at) values (?, ?, ?, ?, ?)`).run(
+      db.prepare(
+        `insert into workspace_members (id, workspace_id, user_id, role, department, created_at) values (?, ?, ?, ?, ?, ?)`
+      ).run(
         randomUUID(),
         workspaceId,
         "local-user",
         "owner",
+        null,
         now
       );
       db.prepare(`update profile set active_workspace_id = ? where user_id = ?`).run(workspaceId, "local-user");
@@ -1771,11 +1851,14 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
         "local-user",
         now
       );
-      db.prepare(`insert into workspace_members (id, workspace_id, user_id, role, created_at) values (?, ?, ?, ?, ?)`).run(
+      db.prepare(
+        `insert into workspace_members (id, workspace_id, user_id, role, department, created_at) values (?, ?, ?, ?, ?, ?)`
+      ).run(
         randomUUID(),
         workspaceId,
         "local-user",
         "owner",
+        null,
         now
       );
       db.prepare(`update profile set active_workspace_id = ? where user_id = ?`).run(workspaceId, "local-user");

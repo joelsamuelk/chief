@@ -21,6 +21,32 @@ body {
   box-sizing: border-box;
 }
 
+select,
+.chief-select {
+  font-family: inherit;
+  color: #111418;
+  font-size: inherit;
+  accent-color: #111418;
+}
+
+select:focus,
+.chief-select:focus {
+  outline: none;
+}
+
+select option,
+.chief-select option {
+  font-family: inherit;
+  color: #111418;
+  background-color: #ffffff;
+}
+
+select option:checked,
+.chief-select option:checked {
+  background-color: #111418;
+  color: #ffffff;
+}
+
 input[type="date"],
 input[type="time"],
 input[type="datetime-local"] {

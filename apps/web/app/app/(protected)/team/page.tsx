@@ -7,6 +7,7 @@ interface Member {
   id: string;
   name: string;
   role: "owner" | "admin" | "executive" | "member";
+  department: string | null;
 }
 
 interface TeamTask {
@@ -33,6 +34,22 @@ interface TaskOption {
   title: string;
 }
 
+const DEPARTMENT_OPTIONS = [
+  "",
+  "Leadership",
+  "CEO Office",
+  "Engineering",
+  "Product",
+  "Design",
+  "Operations",
+  "Sales",
+  "Marketing",
+  "Finance",
+  "People",
+  "Legal",
+  "Support"
+] as const;
+
 function formatDate(value: string | null) {
   if (!value) return "No due date";
   const date = new Date(value);
@@ -48,9 +65,11 @@ export default function TeamPage() {
 
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberRole, setNewMemberRole] = useState<Member["role"]>("member");
+  const [newMemberDepartment, setNewMemberDepartment] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
 
   async function loadTeam() {
     setLoading(true);
@@ -100,11 +119,13 @@ export default function TeamPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: newMemberName.trim(),
-          role: newMemberRole
+          role: newMemberRole,
+          department: newMemberDepartment.trim() || null
         })
       });
       if (!response.ok) throw new Error("Unable to add member.");
       setNewMemberName("");
+      setNewMemberDepartment("");
       await loadTeam();
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "Unable to add member.");
@@ -136,6 +157,27 @@ export default function TeamPage() {
     }
   }
 
+  async function updateMemberDepartment(memberId: string, department: string) {
+    setUpdatingMemberId(memberId);
+    setError(null);
+    try {
+      const response = await fetch("/api/team/members", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: memberId,
+          department: department || null
+        })
+      });
+      if (!response.ok) throw new Error("Unable to update department.");
+      await loadTeam();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Unable to update department.");
+    } finally {
+      setUpdatingMemberId(null);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -159,6 +201,18 @@ export default function TeamPage() {
                 <div key={member.id} className="rounded-[10px] border border-black/10 bg-[#FAFAFB] px-3 py-2">
                   <p className="text-[13px] font-semibold text-textPrimary">{member.name}</p>
                   <p className="text-[11px] uppercase tracking-[0.06em] text-textSecondary">{member.role}</p>
+                  <select
+                    value={member.department ?? ""}
+                    onChange={(event) => void updateMemberDepartment(member.id, event.target.value)}
+                    disabled={!overview.can_manage_workspace || updatingMemberId === member.id}
+                    className="mt-2 h-8 w-full rounded-[8px] border border-black/10 bg-white px-2 text-[12px]"
+                  >
+                    {DEPARTMENT_OPTIONS.map((department) => (
+                      <option key={department || "none"} value={department}>
+                        {department || "No department"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
@@ -166,7 +220,7 @@ export default function TeamPage() {
 
           <Card className="border border-black/10 p-4 shadow-none">
             <p className="mb-3 text-[16px] font-semibold">Add member</p>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_160px_auto]">
               <input
                 value={newMemberName}
                 onChange={(event) => setNewMemberName(event.target.value)}
@@ -174,6 +228,18 @@ export default function TeamPage() {
                 disabled={!overview.can_manage_workspace}
                 className="h-10 rounded-[10px] border border-black/10 bg-white px-3 text-[13px]"
               />
+              <select
+                value={newMemberDepartment}
+                onChange={(event) => setNewMemberDepartment(event.target.value)}
+                disabled={!overview.can_manage_workspace}
+                className="h-10 rounded-[10px] border border-black/10 bg-white px-3 text-[13px]"
+              >
+                {DEPARTMENT_OPTIONS.map((department) => (
+                  <option key={department || "none"} value={department}>
+                    {department || "No department"}
+                  </option>
+                ))}
+              </select>
               <select
                 value={newMemberRole}
                 onChange={(event) => setNewMemberRole(event.target.value as Member["role"])}

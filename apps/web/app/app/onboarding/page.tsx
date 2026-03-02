@@ -8,6 +8,8 @@ import { getTimezoneOptions } from "@/lib/timezones";
 type ProactivityLevel = "reactive" | "quiet" | "strong";
 
 const workingDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const hourOptions = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0"));
+const minuteOptions = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
 
 interface OnboardingProfile {
   role: string | null;
@@ -26,6 +28,16 @@ function stepTitle(step: number) {
   if (step === 2) return "Work hours";
   if (step === 3) return "Proactivity";
   return "Setup complete";
+}
+
+function normalizeTime(value: string, fallback: string) {
+  const match = value.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return fallback;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return fallback;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return fallback;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 export default function OnboardingPage() {
@@ -87,6 +99,10 @@ export default function OnboardingPage() {
     const inferred = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     return getTimezoneOptions(inferred, timezone);
   }, [timezone]);
+  const normalizedWorkStart = normalizeTime(workStart, "09:00");
+  const normalizedWorkEnd = normalizeTime(workEnd, "17:30");
+  const [workStartHour, workStartMinute] = normalizedWorkStart.split(":");
+  const [workEndHour, workEndMinute] = normalizedWorkEnd.split(":");
 
   function toggleDay(day: string) {
     setWorkDays((current) => {
@@ -231,7 +247,7 @@ export default function OnboardingPage() {
                 <select
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
-                  className="mt-1 h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
+                  className="chief-select mt-1 h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
                 >
                   {timezoneOptions.map((option) => (
                     <option key={option} value={option}>
@@ -248,21 +264,59 @@ export default function OnboardingPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-[13px] font-medium text-textPrimary">
                   Work start
-                  <input
-                    type="time"
-                    value={workStart}
-                    onChange={(event) => setWorkStart(event.target.value)}
-                    className="mt-1 h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
-                  />
+                  <div className="mt-1 flex items-center gap-2">
+                    <select
+                      value={workStartHour}
+                      onChange={(event) => setWorkStart(`${event.target.value}:${workStartMinute}`)}
+                      className="chief-select h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
+                    >
+                      {hourOptions.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[14px] text-textSecondary">:</span>
+                    <select
+                      value={workStartMinute}
+                      onChange={(event) => setWorkStart(`${workStartHour}:${event.target.value}`)}
+                      className="chief-select h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
+                    >
+                      {minuteOptions.map((minute) => (
+                        <option key={minute} value={minute}>
+                          {minute}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <label className="block text-[13px] font-medium text-textPrimary">
                   Work end
-                  <input
-                    type="time"
-                    value={workEnd}
-                    onChange={(event) => setWorkEnd(event.target.value)}
-                    className="mt-1 h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
-                  />
+                  <div className="mt-1 flex items-center gap-2">
+                    <select
+                      value={workEndHour}
+                      onChange={(event) => setWorkEnd(`${event.target.value}:${workEndMinute}`)}
+                      className="chief-select h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
+                    >
+                      {hourOptions.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-[14px] text-textSecondary">:</span>
+                    <select
+                      value={workEndMinute}
+                      onChange={(event) => setWorkEnd(`${workEndHour}:${event.target.value}`)}
+                      className="chief-select h-11 w-full rounded-[10px] border border-black/10 bg-white px-3 text-[14px]"
+                    >
+                      {minuteOptions.map((minute) => (
+                        <option key={minute} value={minute}>
+                          {minute}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
               </div>
 

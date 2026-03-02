@@ -13,16 +13,17 @@ export function getOrCreateOrganization(name = "Chief Team") {
   };
 }
 
-export function addMember(input: { name: string; role: MemberRole }) {
+export function addMember(input: { name: string; role: MemberRole; department?: string | null }) {
   const repos = getRepos();
   const context = getDefaultContext();
   const userId = input.name.trim().toLowerCase().replace(/\s+/g, ".");
-  const member = repos.workspaceMember.add(context.workspaceId, userId, input.role);
+  const member = repos.workspaceMember.add(context.workspaceId, userId, input.role, input.department ?? null);
   return {
     id: member.id,
     org_id: context.workspaceId,
     name: input.name.trim(),
     role: member.role,
+    department: member.department,
     created_at: member.created_at
   };
 }
@@ -38,9 +39,25 @@ export function listMembers() {
       org_id: workspace.id,
       name,
       role: member.role,
+      department: member.department,
       created_at: member.created_at
     };
   });
+}
+
+export function updateMemberDepartment(memberId: string, department: string | null) {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const member = repos.workspaceMember.updateDepartment(context.workspaceId, memberId, department);
+  if (!member) return null;
+  return {
+    id: member.id,
+    org_id: context.workspaceId,
+    name: member.user_id === context.userId ? "You" : member.user_id.replace(/[._-]/g, " "),
+    role: member.role,
+    department: member.department,
+    created_at: member.created_at
+  };
 }
 
 export function getTeamOverview() {

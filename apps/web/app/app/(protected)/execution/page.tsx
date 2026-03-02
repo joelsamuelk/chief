@@ -74,6 +74,7 @@ export default function ExecutionPage() {
 
   const [showCheckin, setShowCheckin] = useState(false);
   const [checkinDrafts, setCheckinDrafts] = useState<Record<string, CheckinDraft>>({});
+  const [busy, setBusy] = useState(false);
 
   async function load(quarterParam?: string) {
     const params = new URLSearchParams();
@@ -138,6 +139,20 @@ export default function ExecutionPage() {
     }
   }
 
+  async function runAndReload(action: Record<string, unknown>, successMessage: string, fallbackError: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await post(action);
+      setMessage(successMessage);
+      await load(quarter);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : fallbackError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createOutcome() {
     if (!newOutcomeTitle.trim()) return;
     try {
@@ -148,6 +163,23 @@ export default function ExecutionPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create outcome.");
     }
+  }
+
+  async function editOutcome(outcome: OutcomeNode) {
+    const title = window.prompt("Outcome title", outcome.title);
+    if (title === null) return;
+    const description = window.prompt("Outcome description", outcome.description ?? "");
+    if (description === null) return;
+    await runAndReload(
+      { action: "update_outcome", id: outcome.id, title: title.trim(), description: description.trim() || null },
+      "Outcome updated.",
+      "Unable to update outcome."
+    );
+  }
+
+  async function removeOutcome(outcome: OutcomeNode) {
+    if (!window.confirm(`Delete outcome \"${outcome.title}\" and all nested items?`)) return;
+    await runAndReload({ action: "delete_outcome", id: outcome.id }, "Outcome deleted.", "Unable to delete outcome.");
   }
 
   async function createObjective(outcomeId: string) {
@@ -162,6 +194,27 @@ export default function ExecutionPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create objective.");
     }
+  }
+
+  async function editObjective(objective: ObjectiveNode) {
+    const title = window.prompt("Objective title", objective.title);
+    if (title === null) return;
+    const description = window.prompt("Objective description", objective.description ?? "");
+    if (description === null) return;
+    await runAndReload(
+      { action: "update_objective", id: objective.id, title: title.trim(), description: description.trim() || null },
+      "Objective updated.",
+      "Unable to update objective."
+    );
+  }
+
+  async function removeObjective(objective: ObjectiveNode) {
+    if (!window.confirm(`Delete objective \"${objective.title}\" and all key results/initiatives?`)) return;
+    await runAndReload(
+      { action: "delete_objective", id: objective.id },
+      "Objective deleted.",
+      "Unable to delete objective."
+    );
   }
 
   async function createKeyResult(objectiveId: string) {
@@ -186,6 +239,42 @@ export default function ExecutionPage() {
     }
   }
 
+  async function editKeyResult(kr: KeyResultNode) {
+    const metric = window.prompt("Key Result metric", kr.metric_name);
+    if (metric === null) return;
+    const targetRaw = window.prompt("Target value", String(kr.target_value));
+    if (targetRaw === null) return;
+    const currentRaw = window.prompt("Current value", String(kr.current_value));
+    if (currentRaw === null) return;
+    const targetValue = Number(targetRaw);
+    const currentValue = Number(currentRaw);
+    if (!Number.isFinite(targetValue) || !Number.isFinite(currentValue)) {
+      setError("Target and current values must be numbers.");
+      return;
+    }
+
+    await runAndReload(
+      {
+        action: "update_key_result",
+        id: kr.id,
+        metric_name: metric.trim(),
+        target_value: targetValue,
+        current_value: currentValue
+      },
+      "Key Result updated.",
+      "Unable to update key result."
+    );
+  }
+
+  async function removeKeyResult(kr: KeyResultNode) {
+    if (!window.confirm(`Delete key result \"${kr.metric_name}\" and all initiatives?`)) return;
+    await runAndReload(
+      { action: "delete_key_result", id: kr.id },
+      "Key Result deleted.",
+      "Unable to delete key result."
+    );
+  }
+
   async function createInitiative(keyResultId: string) {
     const title = (newInitiativeByKr[keyResultId] ?? "").trim();
     if (!title) return;
@@ -198,6 +287,32 @@ export default function ExecutionPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create initiative.");
     }
+  }
+
+  async function editInitiative(initiative: InitiativeNode) {
+    const title = window.prompt("Initiative title", initiative.title);
+    if (title === null) return;
+    const description = window.prompt("Initiative description", initiative.description ?? "");
+    if (description === null) return;
+    await runAndReload(
+      {
+        action: "update_initiative",
+        id: initiative.id,
+        title: title.trim(),
+        description: description.trim() || null
+      },
+      "Initiative updated.",
+      "Unable to update initiative."
+    );
+  }
+
+  async function removeInitiative(initiative: InitiativeNode) {
+    if (!window.confirm(`Delete initiative \"${initiative.title}\"?`)) return;
+    await runAndReload(
+      { action: "delete_initiative", id: initiative.id },
+      "Initiative deleted.",
+      "Unable to delete initiative."
+    );
   }
 
   async function submitWeeklyCheckin() {
@@ -262,6 +377,7 @@ export default function ExecutionPage() {
           <button
             type="button"
             onClick={() => setShowCheckin((value) => !value)}
+            disabled={busy}
             className="h-9 rounded-pill border border-black/10 bg-white px-3 text-[12px] text-textSecondary"
           >
             Weekly check-in
@@ -345,6 +461,7 @@ export default function ExecutionPage() {
           <button
             type="button"
             onClick={() => void createOutcome()}
+            disabled={busy}
             className="h-10 rounded-pill bg-chipActiveBg px-4 text-[12px] font-semibold text-chipActiveText"
           >
             Add
@@ -355,6 +472,24 @@ export default function ExecutionPage() {
           {data?.outcomes.map((outcome) => (
             <details key={outcome.id} className="rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3" open>
               <summary className="cursor-pointer text-[14px] font-semibold text-textPrimary">{outcome.title}</summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void editOutcome(outcome)}
+                  disabled={busy}
+                  className="h-7 rounded-pill border border-black/10 bg-white px-3 text-[11px] text-textSecondary disabled:opacity-70"
+                >
+                  Edit Outcome
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void removeOutcome(outcome)}
+                  disabled={busy}
+                  className="h-7 rounded-pill bg-[#FBE9EA] px-3 text-[11px] text-[#A12A32] disabled:opacity-70"
+                >
+                  Delete Outcome
+                </button>
+              </div>
               <p className="mt-1 text-[12px] text-textSecondary">{outcome.description ?? "No description"}</p>
 
               <div className="mt-3 flex gap-2">
@@ -369,6 +504,7 @@ export default function ExecutionPage() {
                 <button
                   type="button"
                   onClick={() => void createObjective(outcome.id)}
+                  disabled={busy}
                   className="h-9 rounded-pill border border-black/10 bg-white px-3 text-[12px] text-textSecondary"
                 >
                   Add Objective
@@ -379,6 +515,24 @@ export default function ExecutionPage() {
                 {outcome.objectives.map((objective) => (
                   <details key={objective.id} className="rounded-[10px] border border-black/10 bg-white p-3" open>
                     <summary className="cursor-pointer text-[13px] font-semibold text-textPrimary">{objective.title}</summary>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void editObjective(objective)}
+                        disabled={busy}
+                        className="h-7 rounded-pill border border-black/10 bg-[#FAFAFB] px-3 text-[11px] text-textSecondary disabled:opacity-70"
+                      >
+                        Edit Objective
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void removeObjective(objective)}
+                        disabled={busy}
+                        className="h-7 rounded-pill bg-[#FBE9EA] px-3 text-[11px] text-[#A12A32] disabled:opacity-70"
+                      >
+                        Delete Objective
+                      </button>
+                    </div>
 
                     <div className="mt-3 flex gap-2">
                       <input
@@ -406,6 +560,7 @@ export default function ExecutionPage() {
                       <button
                         type="button"
                         onClick={() => void createKeyResult(objective.id)}
+                        disabled={busy}
                         className="h-9 rounded-pill border border-black/10 bg-white px-3 text-[12px] text-textSecondary"
                       >
                         Add KR
@@ -419,6 +574,24 @@ export default function ExecutionPage() {
                             {kr.metric_name} ({kr.current_value}/{kr.target_value})
                           </p>
                           <p className="text-[11px] text-textSecondary">Status: {kr.status.replace("_", " ")}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void editKeyResult(kr)}
+                              disabled={busy}
+                              className="h-7 rounded-pill border border-black/10 bg-white px-3 text-[11px] text-textSecondary disabled:opacity-70"
+                            >
+                              Edit KR
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void removeKeyResult(kr)}
+                              disabled={busy}
+                              className="h-7 rounded-pill bg-[#FBE9EA] px-3 text-[11px] text-[#A12A32] disabled:opacity-70"
+                            >
+                              Delete KR
+                            </button>
+                          </div>
 
                           <div className="mt-2 flex gap-2">
                             <input
@@ -432,6 +605,7 @@ export default function ExecutionPage() {
                             <button
                               type="button"
                               onClick={() => void createInitiative(kr.id)}
+                              disabled={busy}
                               className="h-8 rounded-pill border border-black/10 bg-white px-3 text-[11px] text-textSecondary"
                             >
                               Add Initiative
@@ -441,7 +615,29 @@ export default function ExecutionPage() {
                           <div className="mt-2 space-y-1">
                             {kr.initiatives.map((initiative) => (
                               <div key={initiative.id} className="rounded-[8px] border border-black/10 bg-white px-2 py-1 text-[11px] text-textSecondary">
-                                {initiative.title} · {initiative.status} · Tasks {initiative.completed_tasks}/{initiative.total_tasks}
+                                <div className="flex items-center justify-between gap-2">
+                                  <span>
+                                    {initiative.title} · {initiative.status} · Tasks {initiative.completed_tasks}/{initiative.total_tasks}
+                                  </span>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => void editInitiative(initiative)}
+                                      disabled={busy}
+                                      className="text-[10px] text-textSecondary underline disabled:opacity-70"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void removeInitiative(initiative)}
+                                      disabled={busy}
+                                      className="text-[10px] text-[#A12A32] underline disabled:opacity-70"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>

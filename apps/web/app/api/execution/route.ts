@@ -6,9 +6,17 @@ import {
   createKeyResult,
   createObjective,
   createOutcome,
+  deleteInitiative,
+  deleteKeyResult,
+  deleteObjective,
+  deleteOutcome,
   generateWeeklyExecutionBrief,
   listExecutionTree,
-  listInitiatives
+  listInitiatives,
+  updateInitiative,
+  updateKeyResult,
+  updateObjective,
+  updateOutcome
 } from "@/lib/services/execution";
 
 export async function GET(request: Request) {
@@ -37,8 +45,17 @@ export async function POST(request: Request) {
         | "create_objective"
         | "create_key_result"
         | "create_initiative"
+        | "update_outcome"
+        | "update_objective"
+        | "update_key_result"
+        | "update_initiative"
+        | "delete_outcome"
+        | "delete_objective"
+        | "delete_key_result"
+        | "delete_initiative"
         | "weekly_checkin"
         | "weekly_brief";
+      id?: string;
       title?: string;
       description?: string | null;
       quarter?: string;
@@ -100,6 +117,64 @@ export async function POST(request: Request) {
           owner_id: payload.owner_id
         })
       });
+    }
+
+    if (payload.action === "update_outcome") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({
+        outcome: updateOutcome({ id: payload.id, title: payload.title, description: payload.description })
+      });
+    }
+
+    if (payload.action === "update_objective") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({
+        objective: updateObjective({ id: payload.id, title: payload.title, description: payload.description })
+      });
+    }
+
+    if (payload.action === "update_key_result") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({
+        key_result: updateKeyResult({
+          id: payload.id,
+          metric_name: payload.metric_name,
+          target_value: payload.target_value,
+          current_value: payload.current_value,
+          status: payload.status
+        })
+      });
+    }
+
+    if (payload.action === "update_initiative") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({
+        initiative: updateInitiative({
+          id: payload.id,
+          title: payload.title,
+          description: payload.description
+        })
+      });
+    }
+
+    if (payload.action === "delete_outcome") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({ deleted: deleteOutcome({ id: payload.id }) });
+    }
+
+    if (payload.action === "delete_objective") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({ deleted: deleteObjective({ id: payload.id }) });
+    }
+
+    if (payload.action === "delete_key_result") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({ deleted: deleteKeyResult({ id: payload.id }) });
+    }
+
+    if (payload.action === "delete_initiative") {
+      if (!payload.id) throw new Error("id is required.");
+      return jsonOk({ deleted: deleteInitiative({ id: payload.id }) });
     }
 
     if (payload.action === "weekly_checkin") {

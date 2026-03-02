@@ -27,11 +27,11 @@ const desktopLinks: NavLink[] = [
   { href: "/app/today", label: "Today", icon: "today", mobile: true },
   { href: "/app/queue", label: "Action Queue", icon: "queue", mobile: true },
   { href: "/app/tasks", label: "Tasks", icon: "tasks", mobile: true },
+  { href: "/app/execution", label: "Execution", icon: "execution" },
   { href: "/app/meetings", label: "Meetings", icon: "meetings" },
+  { href: "/app/decisions", label: "Decisions", icon: "decisions" },
   { href: "/app/memory", label: "Memory", icon: "memory" },
   { href: "/app/team", label: "Team", icon: "team" },
-  { href: "/app/decisions", label: "Decisions", icon: "decisions" },
-  { href: "/app/execution", label: "Execution", icon: "execution" },
   { href: "/app/assist", label: "Chief Assist", icon: "assist", mobile: true },
   { href: "/app/settings", label: "Settings", icon: "settings" }
 ];

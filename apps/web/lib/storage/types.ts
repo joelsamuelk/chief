@@ -42,6 +42,7 @@ export interface WorkspaceMember {
   workspace_id: string;
   user_id: string;
   role: WorkspaceRole;
+  department: string | null;
   created_at: string;
 }
 
@@ -363,6 +364,11 @@ export interface CreateObjectiveInput {
   owner_id: string;
 }
 
+export interface UpdateObjectiveInput {
+  title?: string;
+  description?: string | null;
+}
+
 export interface CreateKeyResultInput {
   objective_id: string;
   metric_name: string;
@@ -465,11 +471,14 @@ export interface WorkspaceRepo {
   listByUser(userId: string): Workspace[];
   getById(id: string): Workspace | null;
   create(userId: string, name: string, type: WorkspaceType): Workspace;
+  updateName(id: string, name: string): Workspace | null;
+  delete(id: string): boolean;
 }
 
 export interface WorkspaceMemberRepo {
   listByWorkspace(workspaceId: string): WorkspaceMember[];
-  add(workspaceId: string, userId: string, role: WorkspaceRole): WorkspaceMember;
+  add(workspaceId: string, userId: string, role: WorkspaceRole, department?: string | null): WorkspaceMember;
+  updateDepartment(workspaceId: string, memberId: string, department: string | null): WorkspaceMember | null;
   findByWorkspaceUser(workspaceId: string, userId: string): WorkspaceMember | null;
 }
 
@@ -493,6 +502,7 @@ export interface OutcomeRepo {
   getById(context: StorageContext, id: string): Outcome | null;
   create(context: StorageContext, input: CreateOutcomeInput): Outcome;
   update(context: StorageContext, id: string, patch: Partial<Outcome>): Outcome | null;
+  delete(context: StorageContext, id: string): boolean;
 }
 
 export interface ObjectiveRepo {
@@ -500,6 +510,8 @@ export interface ObjectiveRepo {
   listByOutcome(context: StorageContext, outcomeId: string): Objective[];
   getById(context: StorageContext, id: string): Objective | null;
   create(context: StorageContext, input: CreateObjectiveInput): Objective;
+  update(context: StorageContext, id: string, patch: UpdateObjectiveInput): Objective | null;
+  delete(context: StorageContext, id: string): boolean;
 }
 
 export interface KeyResultRepo {
@@ -508,6 +520,7 @@ export interface KeyResultRepo {
   getById(context: StorageContext, id: string): KeyResult | null;
   create(context: StorageContext, input: CreateKeyResultInput): KeyResult;
   update(context: StorageContext, id: string, patch: UpdateKeyResultInput): KeyResult | null;
+  delete(context: StorageContext, id: string): boolean;
 }
 
 export interface InitiativeRepo {
@@ -516,6 +529,7 @@ export interface InitiativeRepo {
   getById(context: StorageContext, id: string): Initiative | null;
   create(context: StorageContext, input: CreateInitiativeInput): Initiative;
   update(context: StorageContext, id: string, patch: UpdateInitiativeInput): Initiative | null;
+  delete(context: StorageContext, id: string): boolean;
 }
 
 export interface CheckinRepo {
