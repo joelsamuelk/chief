@@ -3,8 +3,8 @@ import { jsonError, jsonOk } from "@/lib/server/http";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const task = completeTask(params.id);
-    return jsonOk({ task });
+    const result = completeTask(params.id);
+    return jsonOk(result);
   } catch (error) {
     return jsonError(error);
   }

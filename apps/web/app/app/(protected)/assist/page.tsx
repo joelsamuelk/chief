@@ -57,7 +57,7 @@ export default function AssistPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-[30px] font-semibold">Assist</h1>
+        <h1 className="text-[30px] font-semibold">Chief Assist</h1>
         <p className="text-[13px] text-textSecondary">Command layer grounded in local structured records.</p>
       </div>
 

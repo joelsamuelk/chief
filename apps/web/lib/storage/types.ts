@@ -2,6 +2,10 @@ export type ProactivityLevel = "reactive" | "quiet" | "strong";
 export type Priority = "low" | "medium" | "high";
 export type TaskStatus = "open" | "completed" | "archived" | "waiting";
 export type DecisionStatus = "proposed" | "approved" | "implemented";
+export type OutcomeStatus = "active" | "completed" | "archived";
+export type KeyResultStatus = "on_track" | "at_risk" | "off_track";
+export type InitiativeStatus = "planned" | "active" | "completed" | "paused";
+export type CheckinEntityType = "outcome" | "objective" | "key_result" | "initiative";
 export type SourceKind = "email" | "meeting" | "shared_text" | "manual_note";
 export type ExtractedItemKind = "task" | "decision" | "follow_up" | "risk" | "summary";
 export type ExtractedItemStatus = "pending" | "accepted" | "dismissed" | "snoozed";
@@ -89,6 +93,7 @@ export interface Task {
   delegated_by: string | null;
   delegated_acknowledged_at: string | null;
   waiting_on: string | null;
+  initiative_id: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -117,12 +122,64 @@ export interface Decision {
   status: DecisionStatus;
   related_meeting_id: string | null;
   source_id: string | null;
+  outcome_id: string | null;
+  initiative_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export interface Outcome {
+  id: string;
+  title: string;
+  description: string | null;
+  quarter: string;
+  owner_id: string;
+  status: OutcomeStatus;
+  created_at: string;
+}
+
+export interface Objective {
+  id: string;
+  outcome_id: string;
+  title: string;
+  description: string | null;
+  owner_id: string;
+  created_at: string;
+}
+
+export interface KeyResult {
+  id: string;
+  objective_id: string;
+  metric_name: string;
+  target_value: number;
+  current_value: number;
+  status: KeyResultStatus;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Initiative {
+  id: string;
+  key_result_id: string;
+  title: string;
+  description: string | null;
+  owner_id: string;
+  status: InitiativeStatus;
+  created_at: string;
+}
+
+export interface Checkin {
+  id: string;
+  entity_type: CheckinEntityType;
+  entity_id: string;
+  status: KeyResultStatus;
+  note: string;
+  created_at: string;
+}
+
 export interface Risk {
-  kind: "overdue" | "snoozed" | "delegated_stuck";
+  kind: "overdue" | "snoozed" | "delegated_stuck" | "execution_drift";
   title: string;
   detail: string;
   severity: "low" | "medium" | "high";
@@ -137,6 +194,10 @@ export interface TodayPriority {
   due_at: string | null;
   priority: Priority;
   score: number;
+  initiative_id?: string | null;
+  initiative_title?: string | null;
+  key_result_id?: string | null;
+  key_result_metric?: string | null;
 }
 
 export interface TodaySnapshot {
@@ -197,6 +258,7 @@ export interface CreateTaskInput {
   delegated_to?: string | null;
   delegated_by?: string | null;
   waiting_on?: string | null;
+  initiative_id?: string | null;
 }
 
 export interface UpdateTaskInput {
@@ -209,6 +271,7 @@ export interface UpdateTaskInput {
   delegated_by?: string | null;
   delegated_acknowledged_at?: string | null;
   waiting_on?: string | null;
+  initiative_id?: string | null;
   completed_at?: string | null;
 }
 
@@ -238,6 +301,8 @@ export interface CreateDecisionInput {
   owner?: string | null;
   status?: DecisionStatus;
   related_meeting_id?: string | null;
+  outcome_id?: string | null;
+  initiative_id?: string | null;
   source_id?: string | null;
 }
 
@@ -247,6 +312,60 @@ export interface UpdateDecisionInput {
   owner?: string | null;
   status?: DecisionStatus;
   related_meeting_id?: string | null;
+  outcome_id?: string | null;
+  initiative_id?: string | null;
+}
+
+export interface CreateOutcomeInput {
+  title: string;
+  description?: string | null;
+  quarter: string;
+  owner_id: string;
+  status?: OutcomeStatus;
+}
+
+export interface CreateObjectiveInput {
+  outcome_id: string;
+  title: string;
+  description?: string | null;
+  owner_id: string;
+}
+
+export interface CreateKeyResultInput {
+  objective_id: string;
+  metric_name: string;
+  target_value: number;
+  current_value?: number;
+  status?: KeyResultStatus;
+  owner_id: string;
+}
+
+export interface UpdateKeyResultInput {
+  metric_name?: string;
+  target_value?: number;
+  current_value?: number;
+  status?: KeyResultStatus;
+}
+
+export interface CreateInitiativeInput {
+  key_result_id: string;
+  title: string;
+  description?: string | null;
+  owner_id: string;
+  status?: InitiativeStatus;
+}
+
+export interface UpdateInitiativeInput {
+  title?: string;
+  description?: string | null;
+  status?: InitiativeStatus;
+}
+
+export interface CreateCheckinInput {
+  entity_type: CheckinEntityType;
+  entity_id: string;
+  status: KeyResultStatus;
+  note?: string;
 }
 
 export interface ProfileRepo {
@@ -325,6 +444,42 @@ export interface DigestRepo {
   list(context: StorageContext): DigestRecord[];
 }
 
+export interface OutcomeRepo {
+  list(context: StorageContext): Outcome[];
+  getById(context: StorageContext, id: string): Outcome | null;
+  create(context: StorageContext, input: CreateOutcomeInput): Outcome;
+  update(context: StorageContext, id: string, patch: Partial<Outcome>): Outcome | null;
+}
+
+export interface ObjectiveRepo {
+  list(context: StorageContext): Objective[];
+  listByOutcome(context: StorageContext, outcomeId: string): Objective[];
+  getById(context: StorageContext, id: string): Objective | null;
+  create(context: StorageContext, input: CreateObjectiveInput): Objective;
+}
+
+export interface KeyResultRepo {
+  list(context: StorageContext): KeyResult[];
+  listByObjective(context: StorageContext, objectiveId: string): KeyResult[];
+  getById(context: StorageContext, id: string): KeyResult | null;
+  create(context: StorageContext, input: CreateKeyResultInput): KeyResult;
+  update(context: StorageContext, id: string, patch: UpdateKeyResultInput): KeyResult | null;
+}
+
+export interface InitiativeRepo {
+  list(context: StorageContext): Initiative[];
+  listByKeyResult(context: StorageContext, keyResultId: string): Initiative[];
+  getById(context: StorageContext, id: string): Initiative | null;
+  create(context: StorageContext, input: CreateInitiativeInput): Initiative;
+  update(context: StorageContext, id: string, patch: UpdateInitiativeInput): Initiative | null;
+}
+
+export interface CheckinRepo {
+  list(context: StorageContext): Checkin[];
+  listByEntity(context: StorageContext, entityType: CheckinEntityType, entityId: string): Checkin[];
+  create(context: StorageContext, input: CreateCheckinInput): Checkin;
+}
+
 export interface StorageSystemRepo {
   resetAll(): void;
   seedAll(): void;
@@ -342,5 +497,10 @@ export interface StorageRepositories {
   member: MemberRepo;
   snapshot: SnapshotRepo;
   digest: DigestRepo;
+  outcome: OutcomeRepo;
+  objective: ObjectiveRepo;
+  keyResult: KeyResultRepo;
+  initiative: InitiativeRepo;
+  checkin: CheckinRepo;
   system: StorageSystemRepo;
 }

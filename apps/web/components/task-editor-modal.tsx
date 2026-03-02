@@ -5,6 +5,11 @@ import type { Priority, Task, TaskStatus } from "@chief/types";
 import { Chip, Modal } from "@chief/ui/web";
 import { useEffect, useState } from "react";
 
+interface InitiativeOption {
+  id: string;
+  title: string;
+}
+
 const priorities: Priority[] = ["low", "medium", "high"];
 const statuses: TaskStatus[] = ["open", "waiting", "completed", "archived"];
 
@@ -69,7 +74,34 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [status, setStatus] = useState<TaskStatus>("open");
+  const [initiativeId, setInitiativeId] = useState("");
+  const [initiatives, setInitiatives] = useState<InitiativeOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadInitiatives() {
+      try {
+        const response = await fetch("/api/execution?mode=initiatives", { method: "GET", cache: "no-store" });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { initiatives?: InitiativeOption[] };
+        if (active) {
+          setInitiatives(payload.initiatives ?? []);
+        }
+      } catch {
+        if (active) setInitiatives([]);
+      }
+    }
+
+    if (open) {
+      void loadInitiatives();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (task) {
@@ -78,6 +110,7 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
       setDueAt(toInputValue(task.due_at ?? task.start_at ?? null));
       setPriority(task.priority === "med" ? "medium" : task.priority);
       setStatus(task.status === "done" ? "completed" : task.status);
+      setInitiativeId(task.initiative_id ?? "");
       setError(null);
       return;
     }
@@ -87,6 +120,7 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
     setDueAt(toInputValue(new Date().toISOString()));
     setPriority("medium");
     setStatus("open");
+    setInitiativeId("");
     setError(null);
   }, [task]);
 
@@ -107,7 +141,8 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
             description: description.trim().length > 0 ? description.trim() : null,
             due_at: toIso(dueAt),
             priority,
-            status
+            status,
+            initiative_id: initiativeId || null
           }
         });
       } else {
@@ -116,7 +151,8 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
           description: description.trim().length > 0 ? description.trim() : null,
           due_at: toIso(dueAt),
           priority,
-          status
+          status,
+          initiative_id: initiativeId || null
         });
       }
       onOpenChange(false);
@@ -189,6 +225,22 @@ export function TaskEditorModal({ task, open, onOpenChange }: { task: Task | nul
               <Chip key={item} label={item} active={item === priority} onClick={() => setPriority(item)} />
             ))}
           </div>
+        </div>
+
+        <div className="rounded-cardMd border border-divider p-3">
+          <p className="mb-2 text-[13px] font-medium text-textSecondary">Initiative</p>
+          <select
+            value={initiativeId}
+            onChange={(event) => setInitiativeId(event.target.value)}
+            className="h-11 w-full rounded-input border border-divider bg-bg px-3 text-[13px]"
+          >
+            <option value="">No initiative</option>
+            {initiatives.map((initiative) => (
+              <option key={initiative.id} value={initiative.id}>
+                {initiative.title}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="rounded-cardMd border border-divider p-3">

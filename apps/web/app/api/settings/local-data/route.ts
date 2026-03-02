@@ -1,4 +1,4 @@
-import { generateEodRecap, generateMorningBrief, listDigests } from "@/lib/services/notifications";
+import { generateEodRecap, generateMorningBrief, listDigests, runDigestScheduler } from "@/lib/services/notifications";
 import {
   createSharedTextSource,
   exportLocalData,
@@ -19,7 +19,8 @@ type SettingsAction =
   | "create_shared_text"
   | "set_proactivity"
   | "morning_digest"
-  | "eod_digest";
+  | "eod_digest"
+  | "run_scheduler";
 
 export async function GET() {
   try {
@@ -78,6 +79,9 @@ export async function POST(request: Request) {
     }
     if (payload.action === "eod_digest") {
       return jsonOk(generateEodRecap());
+    }
+    if (payload.action === "run_scheduler") {
+      return jsonOk({ scheduler: runDigestScheduler() });
     }
 
     throw new Error("Unsupported action.");

@@ -35,6 +35,7 @@ function sectionFromPath(pathname: string) {
   if (pathname.includes("/meetings")) return "meetings";
   if (pathname.includes("/team")) return "team";
   if (pathname.includes("/queue")) return "queue";
+  if (pathname.includes("/execution")) return "execution";
   if (pathname.includes("/memory")) return "memory";
   if (pathname.includes("/today")) return "today";
   if (pathname.includes("/settings")) return "settings";
@@ -50,6 +51,7 @@ export function FloatingAssist() {
     "/app/meetings",
     "/app/team",
     "/app/queue",
+    "/app/execution",
     "/app/memory"
   ];
 
@@ -109,14 +111,14 @@ export function FloatingAssist() {
         onClick={() => setOpen((value) => !value)}
         className="fixed bottom-5 right-5 z-[70] inline-flex h-12 items-center gap-2 rounded-full bg-chipActiveBg px-4 text-[13px] font-semibold text-chipActiveText shadow-[0_10px_24px_rgba(0,0,0,0.2)]"
       >
-        ✦ Assist
+        ✦ Chief Assist
       </button>
 
       {open ? (
         <div className="fixed bottom-20 right-5 z-[70] w-[360px] max-w-[calc(100vw-1.5rem)] rounded-[18px] border border-black/10 bg-white p-3 shadow-[0_20px_48px_rgba(0,0,0,0.22)]">
           <div className="mb-2 flex items-center justify-between">
             <div>
-              <p className="text-[14px] font-semibold text-textPrimary">Assist</p>
+              <p className="text-[14px] font-semibold text-textPrimary">Chief Assist</p>
               <p className="text-[11px] text-textSecondary">Context: {section}</p>
             </div>
             <button
@@ -144,7 +146,7 @@ export function FloatingAssist() {
 
           <div className="max-h-[260px] space-y-2 overflow-y-auto rounded-[12px] border border-black/10 bg-[#FAFAFB] p-2">
             {messages.length === 0 ? (
-              <p className="text-[12px] text-textSecondary">Ask anything about your workspace. Assist will use your current page context.</p>
+              <p className="text-[12px] text-textSecondary">Ask anything about your workspace. Chief Assist will use your current page context.</p>
             ) : null}
 
             {messages.map((message, index) => (
@@ -174,7 +176,7 @@ export function FloatingAssist() {
                   void runAssist();
                 }
               }}
-              placeholder="Ask Assist"
+              placeholder="Ask Chief Assist"
               className="h-10 flex-1 rounded-[10px] border border-black/10 bg-white px-3 text-[12px]"
             />
             <button

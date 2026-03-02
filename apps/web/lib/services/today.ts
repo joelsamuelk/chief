@@ -28,6 +28,8 @@ export function detectRisks() {
   const context = getDefaultContext();
   const tasks = repos.task.list(context);
   const queue = repos.extractedItem.list(context);
+  const keyResults = repos.keyResult.list(context);
+  const initiatives = repos.initiative.list(context);
   const now = new Date();
   const threeDaysAgo = new Date(now);
   threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
@@ -83,6 +85,41 @@ export function detectRisks() {
     }
   });
 
+  const activeTasks = tasks.filter((task) => task.status !== "completed" && task.status !== "archived");
+  const unalignedActiveTasks = activeTasks.filter((task) => !task.initiative_id);
+  const unalignedRatio = activeTasks.length > 0 ? unalignedActiveTasks.length / activeTasks.length : 0;
+
+  const atRiskWithoutActiveInitiatives = keyResults.filter((kr) => {
+    if (kr.status !== "at_risk") return false;
+    const hasActiveInitiative = initiatives.some(
+      (initiative) =>
+        initiative.key_result_id === kr.id && (initiative.status === "active" || initiative.status === "planned")
+    );
+    return !hasActiveInitiative;
+  });
+
+  if (unalignedRatio > 0.6 || atRiskWithoutActiveInitiatives.length > 0) {
+    const reasons: string[] = [];
+    if (unalignedRatio > 0.6) {
+      reasons.push(
+        `${unalignedActiveTasks.length}/${activeTasks.length} active tasks are not linked to an initiative.`
+      );
+    }
+    if (atRiskWithoutActiveInitiatives.length > 0) {
+      reasons.push(`${atRiskWithoutActiveInitiatives.length} at-risk key result(s) have no active initiatives.`);
+    }
+
+    risks.push({
+      kind: "execution_drift",
+      title: "Execution drift detected",
+      detail: reasons.join(" "),
+      severity: "medium",
+      confidence: 0.81,
+      evidence: reasons.map((reason) => ({ quote: reason })),
+      source_id: "execution-drift"
+    });
+  }
+
   return risks;
 }
 
@@ -109,6 +146,10 @@ export function getTodaySnapshot() {
   }));
 
   const overdue = getTasks("overdue");
+  const initiatives = repos.initiative.list(context);
+  const keyResults = repos.keyResult.list(context);
+  const initiativeById = new Map(initiatives.map((initiative) => [initiative.id, initiative]));
+  const keyResultById = new Map(keyResults.map((kr) => [kr.id, kr]));
   const meetingsToday = getMeetings("all").filter((meeting) => {
     const meetingDay = toDayKey(meeting.start_time);
     return meetingDay === todayKey;
@@ -117,9 +158,23 @@ export function getTodaySnapshot() {
   const risks = detectRisks();
   const snapshot = repos.snapshot.upsert(context, todayKey, topPriorities, risks);
 
+  const prioritiesWithExecution = topPriorities.map((priority) => {
+    const task = openTasks.find((item) => item.id === priority.task_id);
+    const initiative = task?.initiative_id ? initiativeById.get(task.initiative_id) : null;
+    const keyResult = initiative ? keyResultById.get(initiative.key_result_id) : null;
+
+    return {
+      ...priority,
+      initiative_id: initiative?.id ?? null,
+      initiative_title: initiative?.title ?? null,
+      key_result_id: keyResult?.id ?? null,
+      key_result_metric: keyResult?.metric_name ?? null
+    };
+  });
+
   return {
     date: todayKey,
-    top_priorities: topPriorities,
+    top_priorities: prioritiesWithExecution,
     overdue,
     meetings_today: meetingsToday,
     risks,

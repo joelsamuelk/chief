@@ -6,9 +6,16 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { buildSeedPayload } from "./seeds";
 import type {
+  Checkin,
+  CheckinRepo,
   CreateDecisionInput,
+  CreateCheckinInput,
   CreateExtractedItemInput,
+  CreateInitiativeInput,
+  CreateKeyResultInput,
   CreateMeetingInput,
+  CreateObjectiveInput,
+  CreateOutcomeInput,
   CreateSourceInput,
   CreateTaskInput,
   Decision,
@@ -21,6 +28,14 @@ import type {
   MeetingRepo,
   Member,
   MemberRepo,
+  Initiative,
+  InitiativeRepo,
+  KeyResult,
+  KeyResultRepo,
+  Objective,
+  ObjectiveRepo,
+  Outcome,
+  OutcomeRepo,
   Organization,
   OrgRepo,
   Profile,
@@ -36,6 +51,8 @@ import type {
   TaskRepo,
   TodayPriority,
   TodaySnapshot,
+  UpdateInitiativeInput,
+  UpdateKeyResultInput,
   UpdateDecisionInput,
   UpdateMeetingInput,
   UpdateTaskInput
@@ -67,6 +84,15 @@ function parseJson<T>(raw: string | null, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function ensureColumn(db: DatabaseSync, tableName: string, columnName: string, columnDefinition: string) {
+  const columns = db
+    .prepare(`pragma table_info(${tableName})`)
+    .all() as Array<{ name?: unknown }>;
+  const exists = columns.some((column) => String(column.name) === columnName);
+  if (exists) return;
+  db.exec(`alter table ${tableName} add column ${columnName} ${columnDefinition}`);
 }
 
 function mapProfile(row: SqlRecord | undefined): Profile | null {
@@ -140,6 +166,7 @@ function mapTask(row: SqlRecord): Task {
     delegated_by: row.delegated_by ? String(row.delegated_by) : null,
     delegated_acknowledged_at: row.delegated_acknowledged_at ? String(row.delegated_acknowledged_at) : null,
     waiting_on: row.waiting_on ? String(row.waiting_on) : null,
+    initiative_id: row.initiative_id ? String(row.initiative_id) : null,
     completed_at: row.completed_at ? String(row.completed_at) : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at)
@@ -172,8 +199,70 @@ function mapDecision(row: SqlRecord): Decision {
     status: row.status as Decision["status"],
     related_meeting_id: row.related_meeting_id ? String(row.related_meeting_id) : null,
     source_id: row.source_id ? String(row.source_id) : null,
+    outcome_id: row.outcome_id ? String(row.outcome_id) : null,
+    initiative_id: row.initiative_id ? String(row.initiative_id) : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at)
+  };
+}
+
+function mapOutcome(row: SqlRecord): Outcome {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: row.description ? String(row.description) : null,
+    quarter: String(row.quarter),
+    owner_id: String(row.owner_id),
+    status: row.status as Outcome["status"],
+    created_at: String(row.created_at)
+  };
+}
+
+function mapObjective(row: SqlRecord): Objective {
+  return {
+    id: String(row.id),
+    outcome_id: String(row.outcome_id),
+    title: String(row.title),
+    description: row.description ? String(row.description) : null,
+    owner_id: String(row.owner_id),
+    created_at: String(row.created_at)
+  };
+}
+
+function mapKeyResult(row: SqlRecord): KeyResult {
+  return {
+    id: String(row.id),
+    objective_id: String(row.objective_id),
+    metric_name: String(row.metric_name),
+    target_value: Number(row.target_value ?? 0),
+    current_value: Number(row.current_value ?? 0),
+    status: row.status as KeyResult["status"],
+    owner_id: String(row.owner_id),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at)
+  };
+}
+
+function mapInitiative(row: SqlRecord): Initiative {
+  return {
+    id: String(row.id),
+    key_result_id: String(row.key_result_id),
+    title: String(row.title),
+    description: row.description ? String(row.description) : null,
+    owner_id: String(row.owner_id),
+    status: row.status as Initiative["status"],
+    created_at: String(row.created_at)
+  };
+}
+
+function mapCheckin(row: SqlRecord): Checkin {
+  return {
+    id: String(row.id),
+    entity_type: row.entity_type as Checkin["entity_type"],
+    entity_id: String(row.entity_id),
+    status: row.status as Checkin["status"],
+    note: String(row.note ?? ""),
+    created_at: String(row.created_at)
   };
 }
 
@@ -308,6 +397,7 @@ function bootstrap(db: DatabaseSync) {
       delegated_by text,
       delegated_acknowledged_at text,
       waiting_on text,
+      initiative_id text,
       completed_at text,
       created_at text not null,
       updated_at text not null
@@ -338,10 +428,77 @@ function bootstrap(db: DatabaseSync) {
       status text not null,
       related_meeting_id text,
       source_id text,
+      outcome_id text,
+      initiative_id text,
       created_at text not null,
       updated_at text not null
     );
     create index if not exists idx_decisions_user_status on decisions(user_id, status);
+
+    create table if not exists outcomes (
+      id text primary key,
+      user_id text not null,
+      org_id text,
+      title text not null,
+      description text,
+      quarter text not null,
+      owner_id text not null,
+      status text not null,
+      created_at text not null
+    );
+    create index if not exists idx_outcomes_user_quarter on outcomes(user_id, quarter, created_at desc);
+
+    create table if not exists objectives (
+      id text primary key,
+      user_id text not null,
+      org_id text,
+      outcome_id text not null,
+      title text not null,
+      description text,
+      owner_id text not null,
+      created_at text not null
+    );
+    create index if not exists idx_objectives_outcome on objectives(user_id, outcome_id, created_at desc);
+
+    create table if not exists key_results (
+      id text primary key,
+      user_id text not null,
+      org_id text,
+      objective_id text not null,
+      metric_name text not null,
+      target_value real not null,
+      current_value real not null,
+      status text not null,
+      owner_id text not null,
+      created_at text not null,
+      updated_at text not null
+    );
+    create index if not exists idx_key_results_objective on key_results(user_id, objective_id, status);
+
+    create table if not exists initiatives (
+      id text primary key,
+      user_id text not null,
+      org_id text,
+      key_result_id text not null,
+      title text not null,
+      description text,
+      owner_id text not null,
+      status text not null,
+      created_at text not null
+    );
+    create index if not exists idx_initiatives_kr on initiatives(user_id, key_result_id, status);
+
+    create table if not exists checkins (
+      id text primary key,
+      user_id text not null,
+      org_id text,
+      entity_type text not null,
+      entity_id text not null,
+      status text not null,
+      note text,
+      created_at text not null
+    );
+    create index if not exists idx_checkins_entity on checkins(user_id, entity_type, entity_id, created_at desc);
 
     create table if not exists today_snapshots (
       id text primary key,
@@ -364,6 +521,10 @@ function bootstrap(db: DatabaseSync) {
     );
     create index if not exists idx_digests_user_kind on digests(user_id, kind, created_at desc);
   `);
+
+  ensureColumn(db, "tasks", "initiative_id", "text");
+  ensureColumn(db, "decisions", "outcome_id", "text");
+  ensureColumn(db, "decisions", "initiative_id", "text");
 
   const row = db.prepare(`select user_id from profile where user_id = ?`).get("local-user") as SqlRecord | undefined;
   if (!row) {
@@ -405,7 +566,10 @@ declare global {
 function getDb() {
   if (!globalThis.__chiefLocalDb) {
     globalThis.__chiefLocalDb = openDatabase();
+    return globalThis.__chiefLocalDb;
   }
+
+  bootstrap(globalThis.__chiefLocalDb);
   return globalThis.__chiefLocalDb;
 }
 
@@ -656,8 +820,8 @@ function createTaskRepo(db: DatabaseSync): TaskRepo {
       db.prepare(`
         insert into tasks (
           id, user_id, org_id, title, description, due_at, priority, status, source_id,
-          delegated_to, delegated_by, delegated_acknowledged_at, waiting_on, completed_at, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          delegated_to, delegated_by, delegated_acknowledged_at, waiting_on, initiative_id, completed_at, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id,
         context.userId,
@@ -672,6 +836,7 @@ function createTaskRepo(db: DatabaseSync): TaskRepo {
         input.delegated_by ?? null,
         null,
         input.waiting_on ?? null,
+        input.initiative_id ?? null,
         input.status === "completed" ? now : null,
         now,
         now
@@ -691,7 +856,7 @@ function createTaskRepo(db: DatabaseSync): TaskRepo {
       db.prepare(`
         update tasks
         set title = ?, description = ?, due_at = ?, priority = ?, status = ?, source_id = ?,
-            delegated_to = ?, delegated_by = ?, delegated_acknowledged_at = ?, waiting_on = ?, completed_at = ?, updated_at = ?
+            delegated_to = ?, delegated_by = ?, delegated_acknowledged_at = ?, waiting_on = ?, initiative_id = ?, completed_at = ?, updated_at = ?
         where user_id = ? and id = ?
       `).run(
         next.title,
@@ -704,6 +869,7 @@ function createTaskRepo(db: DatabaseSync): TaskRepo {
         next.delegated_by,
         next.delegated_acknowledged_at,
         next.waiting_on,
+        next.initiative_id,
         next.completed_at,
         next.updated_at,
         context.userId,
@@ -803,8 +969,8 @@ function createDecisionRepo(db: DatabaseSync): DecisionRepo {
       const now = nowIso();
       db.prepare(`
         insert into decisions (
-          id, user_id, org_id, title, context, owner, status, related_meeting_id, source_id, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          id, user_id, org_id, title, context, owner, status, related_meeting_id, source_id, outcome_id, initiative_id, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id,
         context.userId,
@@ -815,6 +981,8 @@ function createDecisionRepo(db: DatabaseSync): DecisionRepo {
         input.status ?? "proposed",
         input.related_meeting_id ?? null,
         input.source_id ?? null,
+        input.outcome_id ?? null,
+        input.initiative_id ?? null,
         now,
         now
       );
@@ -832,7 +1000,7 @@ function createDecisionRepo(db: DatabaseSync): DecisionRepo {
 
       db.prepare(`
         update decisions
-        set title = ?, context = ?, owner = ?, status = ?, related_meeting_id = ?, source_id = ?, updated_at = ?
+        set title = ?, context = ?, owner = ?, status = ?, related_meeting_id = ?, source_id = ?, outcome_id = ?, initiative_id = ?, updated_at = ?
         where user_id = ? and id = ?
       `).run(
         next.title,
@@ -841,6 +1009,8 @@ function createDecisionRepo(db: DatabaseSync): DecisionRepo {
         next.status,
         next.related_meeting_id,
         next.source_id,
+        next.outcome_id,
+        next.initiative_id,
         next.updated_at,
         context.userId,
         id
@@ -972,10 +1142,270 @@ function createDigestRepo(db: DatabaseSync): DigestRepo {
   };
 }
 
+function createOutcomeRepo(db: DatabaseSync): OutcomeRepo {
+  return {
+    list(context) {
+      const rows = db
+        .prepare(`select * from outcomes where user_id = ? order by quarter desc, created_at desc`)
+        .all(context.userId) as SqlRecord[];
+      return rows.map(mapOutcome);
+    },
+    getById(context, id) {
+      const row = db
+        .prepare(`select * from outcomes where user_id = ? and id = ?`)
+        .get(context.userId, id) as SqlRecord | undefined;
+      return row ? mapOutcome(row) : null;
+    },
+    create(context, input) {
+      const id = randomUUID();
+      const createdAt = nowIso();
+      db.prepare(`
+        insert into outcomes (id, user_id, org_id, title, description, quarter, owner_id, status, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        context.userId,
+        context.orgId ?? null,
+        input.title,
+        input.description ?? null,
+        input.quarter,
+        input.owner_id,
+        input.status ?? "active",
+        createdAt
+      );
+      return this.getById(context, id)!;
+    },
+    update(context, id, patch) {
+      const current = this.getById(context, id);
+      if (!current) return null;
+      const next = { ...current, ...patch };
+      db.prepare(`
+        update outcomes
+        set title = ?, description = ?, quarter = ?, owner_id = ?, status = ?
+        where user_id = ? and id = ?
+      `).run(next.title, next.description, next.quarter, next.owner_id, next.status, context.userId, id);
+      return this.getById(context, id);
+    }
+  };
+}
+
+function createObjectiveRepo(db: DatabaseSync): ObjectiveRepo {
+  return {
+    list(context) {
+      const rows = db
+        .prepare(`select * from objectives where user_id = ? order by created_at desc`)
+        .all(context.userId) as SqlRecord[];
+      return rows.map(mapObjective);
+    },
+    listByOutcome(context, outcomeId) {
+      const rows = db
+        .prepare(`select * from objectives where user_id = ? and outcome_id = ? order by created_at asc`)
+        .all(context.userId, outcomeId) as SqlRecord[];
+      return rows.map(mapObjective);
+    },
+    getById(context, id) {
+      const row = db
+        .prepare(`select * from objectives where user_id = ? and id = ?`)
+        .get(context.userId, id) as SqlRecord | undefined;
+      return row ? mapObjective(row) : null;
+    },
+    create(context, input) {
+      const id = randomUUID();
+      db.prepare(`
+        insert into objectives (id, user_id, org_id, outcome_id, title, description, owner_id, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        context.userId,
+        context.orgId ?? null,
+        input.outcome_id,
+        input.title,
+        input.description ?? null,
+        input.owner_id,
+        nowIso()
+      );
+      return this.getById(context, id)!;
+    }
+  };
+}
+
+function createKeyResultRepo(db: DatabaseSync): KeyResultRepo {
+  return {
+    list(context) {
+      const rows = db
+        .prepare(`select * from key_results where user_id = ? order by created_at desc`)
+        .all(context.userId) as SqlRecord[];
+      return rows.map(mapKeyResult);
+    },
+    listByObjective(context, objectiveId) {
+      const rows = db
+        .prepare(`select * from key_results where user_id = ? and objective_id = ? order by created_at asc`)
+        .all(context.userId, objectiveId) as SqlRecord[];
+      return rows.map(mapKeyResult);
+    },
+    getById(context, id) {
+      const row = db
+        .prepare(`select * from key_results where user_id = ? and id = ?`)
+        .get(context.userId, id) as SqlRecord | undefined;
+      return row ? mapKeyResult(row) : null;
+    },
+    create(context, input) {
+      const id = randomUUID();
+      const createdAt = nowIso();
+      db.prepare(`
+        insert into key_results (
+          id, user_id, org_id, objective_id, metric_name, target_value, current_value,
+          status, owner_id, created_at, updated_at
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        context.userId,
+        context.orgId ?? null,
+        input.objective_id,
+        input.metric_name,
+        input.target_value,
+        input.current_value ?? 0,
+        input.status ?? "on_track",
+        input.owner_id,
+        createdAt,
+        createdAt
+      );
+      return this.getById(context, id)!;
+    },
+    update(context, id, patch) {
+      const current = this.getById(context, id);
+      if (!current) return null;
+      const next = { ...current, ...patch, updated_at: nowIso() };
+      db.prepare(`
+        update key_results
+        set metric_name = ?, target_value = ?, current_value = ?, status = ?, updated_at = ?
+        where user_id = ? and id = ?
+      `).run(
+        next.metric_name,
+        next.target_value,
+        next.current_value,
+        next.status,
+        next.updated_at,
+        context.userId,
+        id
+      );
+      return this.getById(context, id);
+    }
+  };
+}
+
+function createInitiativeRepo(db: DatabaseSync): InitiativeRepo {
+  return {
+    list(context) {
+      const rows = db
+        .prepare(`select * from initiatives where user_id = ? order by created_at desc`)
+        .all(context.userId) as SqlRecord[];
+      return rows.map(mapInitiative);
+    },
+    listByKeyResult(context, keyResultId) {
+      const rows = db
+        .prepare(`select * from initiatives where user_id = ? and key_result_id = ? order by created_at asc`)
+        .all(context.userId, keyResultId) as SqlRecord[];
+      return rows.map(mapInitiative);
+    },
+    getById(context, id) {
+      const row = db
+        .prepare(`select * from initiatives where user_id = ? and id = ?`)
+        .get(context.userId, id) as SqlRecord | undefined;
+      return row ? mapInitiative(row) : null;
+    },
+    create(context, input) {
+      const id = randomUUID();
+      db.prepare(`
+        insert into initiatives (id, user_id, org_id, key_result_id, title, description, owner_id, status, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        context.userId,
+        context.orgId ?? null,
+        input.key_result_id,
+        input.title,
+        input.description ?? null,
+        input.owner_id,
+        input.status ?? "planned",
+        nowIso()
+      );
+      return this.getById(context, id)!;
+    },
+    update(context, id, patch) {
+      const current = this.getById(context, id);
+      if (!current) return null;
+      const next = { ...current, ...patch };
+      db.prepare(`
+        update initiatives
+        set title = ?, description = ?, status = ?
+        where user_id = ? and id = ?
+      `).run(next.title, next.description, next.status, context.userId, id);
+      return this.getById(context, id);
+    }
+  };
+}
+
+function createCheckinRepo(db: DatabaseSync): CheckinRepo {
+  return {
+    list(context) {
+      const rows = db
+        .prepare(`select * from checkins where user_id = ? order by created_at desc`)
+        .all(context.userId) as SqlRecord[];
+      return rows.map(mapCheckin);
+    },
+    listByEntity(context, entityType, entityId) {
+      const rows = db
+        .prepare(
+          `select * from checkins where user_id = ? and entity_type = ? and entity_id = ? order by created_at desc`
+        )
+        .all(context.userId, entityType, entityId) as SqlRecord[];
+      return rows.map(mapCheckin);
+    },
+    create(context, input) {
+      const id = randomUUID();
+      const createdAt = nowIso();
+      db.prepare(`
+        insert into checkins (id, user_id, org_id, entity_type, entity_id, status, note, created_at)
+        values (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        context.userId,
+        context.orgId ?? null,
+        input.entity_type,
+        input.entity_id,
+        input.status,
+        input.note ?? "",
+        createdAt
+      );
+
+      const row = db
+        .prepare(`select * from checkins where user_id = ? and id = ?`)
+        .get(context.userId, id) as SqlRecord | undefined;
+      if (!row) {
+        return {
+          id,
+          entity_type: input.entity_type,
+          entity_id: input.entity_id,
+          status: input.status,
+          note: input.note ?? "",
+          created_at: createdAt
+        };
+      }
+      return mapCheckin(row);
+    }
+  };
+}
+
 function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
   return {
     resetAll() {
       db.exec(`
+        delete from checkins;
+        delete from initiatives;
+        delete from key_results;
+        delete from objectives;
+        delete from outcomes;
         delete from digests;
         delete from today_snapshots;
         delete from decisions;
@@ -1097,8 +1527,8 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
         db.prepare(`
           insert into tasks (
             id, user_id, org_id, title, description, due_at, priority, status, source_id,
-            delegated_to, delegated_by, delegated_acknowledged_at, waiting_on, completed_at, created_at, updated_at
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            delegated_to, delegated_by, delegated_acknowledged_at, waiting_on, initiative_id, completed_at, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           task.forced_id,
           "local-user",
@@ -1113,6 +1543,7 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
           task.delegated_by ?? null,
           null,
           task.waiting_on ?? null,
+          null,
           task.status === "completed" ? nowIso() : null,
           nowIso(),
           nowIso()
@@ -1122,8 +1553,8 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
       for (const decision of seed.decisions) {
         db.prepare(`
           insert into decisions (
-            id, user_id, org_id, title, context, owner, status, related_meeting_id, source_id, created_at, updated_at
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, user_id, org_id, title, context, owner, status, related_meeting_id, source_id, outcome_id, initiative_id, created_at, updated_at
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           decision.forced_id,
           "local-user",
@@ -1134,6 +1565,8 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
           decision.status ?? "proposed",
           decision.related_meeting_id ?? null,
           decision.source_id ?? null,
+          null,
+          null,
           nowIso(),
           nowIso()
         );
@@ -1195,6 +1628,11 @@ function createSystemRepo(db: DatabaseSync): StorageSystemRepo {
         "tasks",
         "meetings",
         "decisions",
+        "outcomes",
+        "objectives",
+        "key_results",
+        "initiatives",
+        "checkins",
         "today_snapshots",
         "digests"
       ];
@@ -1221,6 +1659,11 @@ export function getStorageRepositories(): StorageRepositories {
     member: createMemberRepo(db),
     snapshot: createSnapshotRepo(db),
     digest: createDigestRepo(db),
+    outcome: createOutcomeRepo(db),
+    objective: createObjectiveRepo(db),
+    keyResult: createKeyResultRepo(db),
+    initiative: createInitiativeRepo(db),
+    checkin: createCheckinRepo(db),
     system: createSystemRepo(db)
   };
 }

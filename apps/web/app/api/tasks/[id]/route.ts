@@ -10,6 +10,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       priority?: "low" | "medium" | "high";
       status?: "open" | "completed" | "archived" | "waiting";
       waiting_on?: string | null;
+      initiative_id?: string | null;
     }>(request);
 
     const task = updateTask(params.id, payload);

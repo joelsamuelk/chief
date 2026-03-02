@@ -40,8 +40,8 @@ export default function AppProtectedLayout({ children }: { children: ReactNode }
             <div className="flex items-center gap-3">
               <Link
                 href="/app/assist"
-                aria-label="Open Assist"
-                title="Assist"
+                aria-label="Open Chief Assist"
+                title="Chief Assist"
                 className="grid h-10 w-10 place-items-center rounded-full border border-black/10 text-[14px] text-[#5D6068]"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">

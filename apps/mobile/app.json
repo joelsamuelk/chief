@@ -8,7 +8,9 @@
     "splash": {
       "backgroundColor": "#F5F6F8"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
@@ -16,6 +18,9 @@
       "adaptiveIcon": {
         "backgroundColor": "#F5F6F8"
       }
-    }
+    },
+    "plugins": [
+      "expo-speech-recognition"
+    ]
   }
 }

@@ -1,8 +1,12 @@
 import { useEvents, useTasks } from "@chief/data";
+import type { Event, Task } from "@chief/types";
 import { Card, CategoryDot } from "@chief/ui/mobile";
 import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import type { RootStackParamList } from "../navigation/types";
 
 type TaskSegment = "recently" | "today" | "upcoming" | "later";
 
@@ -14,6 +18,11 @@ const segmentLabels: Record<TaskSegment, string> = {
 };
 
 const cardPalette = ["#F3EEF9", "#ECE9FF", "#DDF4FF", "#EAF7EF"];
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+function isTaskItem(item: Event | Task): item is Task {
+  return "status" in item;
+}
 
 function formatTimeRange(start?: string | null, end?: string | null) {
   if (!start) return "All day";
@@ -27,6 +36,7 @@ function formatTimeRange(start?: string | null, end?: string | null) {
 }
 
 export function TodayScreen() {
+  const navigation = useNavigation<Nav>();
   const { data: events = [] } = useEvents();
   const { data: allTasks = [] } = useTasks("all");
   const [segment, setSegment] = useState<TaskSegment>("today");
@@ -105,10 +115,12 @@ export function TodayScreen() {
               const dueLabel = task.due_at?.slice(0, 10) ?? "No due date";
 
               return (
-                <View
+                <TouchableOpacity
                   key={task.id}
+                  onPress={() => navigation.navigate("TaskEditor", { taskId: task.id })}
                   className="w-40 rounded-[18px] p-3"
                   style={{ backgroundColor: cardPalette[idx % cardPalette.length] }}
+                  activeOpacity={0.85}
                 >
                   <Text className="text-[10px] font-medium text-textSecondary">{dueLabel}</Text>
                   <Text className="mt-2 text-[14px] font-semibold text-textPrimary" numberOfLines={2}>
@@ -126,7 +138,7 @@ export function TodayScreen() {
                       <Text className="text-[10px] font-medium text-textSecondary">{progress}%</Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -135,12 +147,21 @@ export function TodayScreen() {
 
       <View className="gap-2">
         {listItems.map((item) => (
-          <View
+          <TouchableOpacity
             key={item.id}
+            onPress={() => {
+              if (isTaskItem(item)) {
+                navigation.navigate("TaskEditor", { taskId: item.id });
+                return;
+              }
+
+              navigation.navigate("EventEditor", { eventId: item.id });
+            }}
             className="flex-row items-center gap-3 rounded-[18px] border border-divider bg-surface px-3 py-3"
+            activeOpacity={0.85}
           >
             <View className="h-10 w-10 items-center justify-center rounded-full bg-chipBg">
-              <CategoryDot category={item.category} />
+              <CategoryDot category={item.category ?? "work"} />
             </View>
             <View className="flex-1">
               <Text className="text-[14px] font-semibold text-textPrimary" numberOfLines={1}>
@@ -151,7 +172,7 @@ export function TodayScreen() {
               </Text>
             </View>
             <Ionicons name="ellipsis-vertical" size={16} color="#9CA3AF" />
-          </View>
+          </TouchableOpacity>
         ))}
 
         {listItems.length === 0 ? (

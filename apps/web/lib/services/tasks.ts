@@ -80,11 +80,28 @@ export function updateTask(taskId: string, payload: UpdateTaskInput) {
   return updated;
 }
 
+export interface CompleteTaskResult {
+  task: Task;
+  changed: boolean;
+}
+
 export function completeTask(taskId: string) {
-  return updateTask(taskId, {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const current = repos.task.getById(context, taskId);
+  if (!current) throw new Error("Task not found.");
+
+  if (current.status === "completed" || current.status === "archived") {
+    return { task: current, changed: false } satisfies CompleteTaskResult;
+  }
+
+  const updated = repos.task.update(context, taskId, {
     status: "completed",
     completed_at: new Date().toISOString()
   });
+
+  if (!updated) throw new Error("Task not found.");
+  return { task: updated, changed: true } satisfies CompleteTaskResult;
 }
 
 export function reopenTask(taskId: string) {

@@ -26,6 +26,7 @@ export interface Task {
   delegated_to?: string | null;
   delegated_by?: string | null;
   delegated_acknowledged_at?: string | null;
+  initiative_id?: string | null;
   completed_at?: string | null;
   created_at: string;
   updated_at?: string;
@@ -56,6 +57,8 @@ export interface Decision {
   owner?: string | null;
   status?: DecisionStatus;
   related_meeting_id?: string | null;
+  outcome_id?: string | null;
+  initiative_id?: string | null;
   source_id?: string | null;
   created_at: string;
   updated_at?: string;
@@ -82,6 +85,7 @@ export interface TaskInput {
   source_id?: string | null;
   delegated_to?: string | null;
   delegated_by?: string | null;
+  initiative_id?: string | null;
 }
 
 export interface EventInput {

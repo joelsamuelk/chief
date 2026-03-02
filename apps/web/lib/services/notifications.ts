@@ -8,7 +8,11 @@ export function getNotificationPreferences() {
   const context = getDefaultContext();
   const profile = repos.profile.get(context);
   return {
-    proactivity_level: profile?.proactivity_level ?? "quiet"
+    proactivity_level: profile?.proactivity_level ?? "quiet",
+    timezone: profile?.timezone ?? "UTC",
+    work_start: profile?.work_start ?? "09:00",
+    work_end: profile?.work_end ?? "17:30",
+    onboarding_completed: profile?.onboarding_completed ?? false
   };
 }
 

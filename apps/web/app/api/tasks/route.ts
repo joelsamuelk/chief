@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       source_id?: string | null;
       delegated_to?: string | null;
       waiting_on?: string | null;
+      initiative_id?: string | null;
     }>(request);
 
     const task = createTask({
@@ -44,7 +45,8 @@ export async function POST(request: Request) {
       status: payload.status ?? "open",
       source_id: payload.source_id ?? null,
       delegated_to: payload.delegated_to ?? null,
-      waiting_on: payload.waiting_on ?? null
+      waiting_on: payload.waiting_on ?? null,
+      initiative_id: payload.initiative_id ?? null
     });
 
     return jsonOk({ task }, { status: 201 });

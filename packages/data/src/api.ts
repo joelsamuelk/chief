@@ -49,6 +49,7 @@ function mapTask(task: Record<string, unknown>): Task {
     delegated_to: (task.delegated_to as string | null | undefined) ?? null,
     delegated_by: (task.delegated_by as string | null | undefined) ?? null,
     delegated_acknowledged_at: (task.delegated_acknowledged_at as string | null | undefined) ?? null,
+    initiative_id: (task.initiative_id as string | null | undefined) ?? null,
     completed_at: (task.completed_at as string | null | undefined) ?? null,
     created_at: String(task.created_at),
     updated_at: (task.updated_at as string | undefined) ?? String(task.created_at)
@@ -89,7 +90,8 @@ export async function createTask(input: TaskInput) {
       priority: input.priority ?? "medium",
       status: input.status ?? "open",
       source_id: input.source_id ?? null,
-      delegated_to: input.delegated_to ?? null
+      delegated_to: input.delegated_to ?? null,
+      initiative_id: input.initiative_id ?? null
     })
   });
   return mapTask(payload.task);
@@ -103,7 +105,8 @@ export async function updateTask(taskId: string, patch: Partial<TaskInput>) {
       description: patch.description,
       due_at: patch.due_at ?? patch.start_at ?? null,
       priority: patch.priority,
-      status: patch.status
+      status: patch.status,
+      initiative_id: patch.initiative_id
     })
   });
   return mapTask(payload.task);

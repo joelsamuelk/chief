@@ -31,6 +31,7 @@ export async function POST(request: Request) {
         priority?: "low" | "medium" | "high";
         status?: "open" | "completed" | "archived" | "waiting";
         waiting_on?: string | null;
+        initiative_id?: string | null;
       };
     }>(request);
 
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
     }
 
     if (payload.action === "complete") {
-      return jsonOk({ task: completeTask(payload.task_id) });
+      const result = completeTask(payload.task_id);
+      return jsonOk({ task: result.task, changed: result.changed });
     }
     if (payload.action === "reopen") {
       return jsonOk({ task: reopenTask(payload.task_id) });
@@ -65,7 +67,8 @@ export async function POST(request: Request) {
         due_at: payload.patch?.due_at,
         priority: payload.patch?.priority,
         status: payload.patch?.status,
-        waiting_on: payload.patch?.waiting_on
+        waiting_on: payload.patch?.waiting_on,
+        initiative_id: payload.patch?.initiative_id
       })
     });
   } catch (error) {

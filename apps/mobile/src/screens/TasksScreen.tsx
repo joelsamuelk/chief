@@ -85,7 +85,7 @@ export function TasksScreen() {
               activeOpacity={0.85}
             >
               <View className="flex-row items-center gap-2">
-                <CategoryDot category={task.category} />
+                <CategoryDot category={task.category ?? "work"} />
                 <Text className="flex-1 text-[14px] font-semibold text-textPrimary" numberOfLines={1}>
                   {task.title}
                 </Text>
@@ -120,7 +120,7 @@ export function TasksScreen() {
             activeOpacity={0.85}
           >
             <View className="flex-row items-center gap-2">
-              <CategoryDot category={task.category} />
+              <CategoryDot category={task.category ?? "work"} />
               <View className="flex-1">
                 <Text className="text-[14px] font-semibold text-textPrimary" numberOfLines={1}>
                   {task.title}

@@ -11,6 +11,14 @@ interface DigestRecord {
   content: Record<string, unknown>;
 }
 
+interface NotificationPlan {
+  proactivity_level?: ProactivityLevel;
+  timezone?: string;
+  work_start?: string;
+  work_end?: string;
+  onboarding_completed?: boolean;
+}
+
 export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,21 +26,24 @@ export default function SettingsPage() {
   const [sharedText, setSharedText] = useState("");
   const [digests, setDigests] = useState<DigestRecord[]>([]);
   const [proactivity, setProactivity] = useState<ProactivityLevel>("quiet");
+  const [plan, setPlan] = useState<NotificationPlan | null>(null);
 
   async function loadDigests() {
     try {
       const response = await fetch("/api/notifications/plan", { method: "GET", cache: "no-store" });
       if (!response.ok) return;
       const payload = (await response.json()) as {
-        plan?: { proactivity_level?: ProactivityLevel };
+        plan?: NotificationPlan;
         digests?: DigestRecord[];
       };
       setDigests(payload.digests ?? []);
+      setPlan(payload.plan ?? null);
       if (payload.plan?.proactivity_level) {
         setProactivity(payload.plan.proactivity_level);
       }
     } catch {
       setDigests([]);
+      setPlan(null);
     }
   }
 
@@ -86,6 +97,9 @@ export default function SettingsPage() {
     await runAction("set_proactivity", { proactivity_level: level });
   }
 
+  const latestMorning = digests.find((digest) => digest.kind === "morning");
+  const latestEod = digests.find((digest) => digest.kind === "eod");
+
   return (
     <div className="space-y-4">
       <div>
@@ -138,6 +152,15 @@ export default function SettingsPage() {
 
         <Card className="border border-black/10 p-4 shadow-none">
           <p className="mb-3 text-[16px] font-semibold">Notifications</p>
+          <div className="mb-3 rounded-[12px] border border-black/10 bg-[#FAFAFB] p-3 text-[12px] text-textSecondary">
+            <p>Timezone: {plan?.timezone ?? "UTC"}</p>
+            <p>Work window: {plan?.work_start ?? "09:00"} - {plan?.work_end ?? "17:30"}</p>
+            <p>
+              Scheduler: {plan?.onboarding_completed ? "Enabled" : "Paused until onboarding completes"}
+            </p>
+            <p>Latest morning: {latestMorning ? new Date(latestMorning.created_at).toLocaleString() : "Not generated"}</p>
+            <p>Latest EOD: {latestEod ? new Date(latestEod.created_at).toLocaleString() : "Not generated"}</p>
+          </div>
           <p className="mb-2 text-[12px] text-textSecondary">Proactivity level</p>
           <div className="flex flex-wrap gap-2">
             {(["reactive", "quiet", "strong"] as const).map((level) => (
@@ -171,6 +194,14 @@ export default function SettingsPage() {
               className="h-9 rounded-pill border border-black/10 bg-white px-3 text-[12px] text-textSecondary disabled:opacity-70"
             >
               Generate EOD recap
+            </button>
+            <button
+              type="button"
+              onClick={() => void runAction("run_scheduler")}
+              disabled={loading}
+              className="h-9 rounded-pill border border-black/10 bg-white px-3 text-[12px] text-textSecondary disabled:opacity-70"
+            >
+              Run scheduler now
             </button>
           </div>
         </Card>

@@ -12,6 +12,7 @@ type IconName =
   | "memory"
   | "team"
   | "decisions"
+  | "execution"
   | "assist"
   | "settings";
 
@@ -30,7 +31,8 @@ const desktopLinks: NavLink[] = [
   { href: "/app/memory", label: "Memory", icon: "memory" },
   { href: "/app/team", label: "Team", icon: "team" },
   { href: "/app/decisions", label: "Decisions", icon: "decisions" },
-  { href: "/app/assist", label: "Assist", icon: "assist", mobile: true },
+  { href: "/app/execution", label: "Execution", icon: "execution" },
+  { href: "/app/assist", label: "Chief Assist", icon: "assist", mobile: true },
   { href: "/app/settings", label: "Settings", icon: "settings" }
 ];
 
@@ -100,6 +102,16 @@ function NavIcon({ name, active }: { name: IconName; active: boolean }) {
     return (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M10 2.8 3.6 10H9l-1 7.2L16.4 10H11l1-7.2Z" stroke={stroke} strokeWidth="1.4" opacity={opacity} />
+      </svg>
+    );
+  }
+
+  if (name === "execution") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M4 5h12M4 10h8M4 15h5" stroke={stroke} strokeWidth="1.5" opacity={opacity} />
+        <circle cx="14.5" cy="10" r="1.4" fill={stroke} opacity={opacity} />
+        <circle cx="11" cy="15" r="1.4" fill={stroke} opacity={opacity} />
       </svg>
     );
   }
