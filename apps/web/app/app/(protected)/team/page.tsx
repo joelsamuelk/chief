@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 interface Member {
   id: string;
   name: string;
-  role: "admin" | "executive" | "member";
+  role: "owner" | "admin" | "executive" | "member";
 }
 
 interface TeamTask {
@@ -19,6 +19,8 @@ interface TeamTask {
 
 interface TeamOverview {
   organization: { id: string; name: string };
+  workspace_role: "owner" | "admin" | "executive" | "member";
+  can_manage_workspace: boolean;
   members: Member[];
   delegated_by_me: TeamTask[];
   waiting_on_others: TeamTask[];
@@ -169,11 +171,13 @@ export default function TeamPage() {
                 value={newMemberName}
                 onChange={(event) => setNewMemberName(event.target.value)}
                 placeholder="Name"
+                disabled={!overview.can_manage_workspace}
                 className="h-10 rounded-[10px] border border-black/10 bg-white px-3 text-[13px]"
               />
               <select
                 value={newMemberRole}
                 onChange={(event) => setNewMemberRole(event.target.value as Member["role"])}
+                disabled={!overview.can_manage_workspace}
                 className="h-10 rounded-[10px] border border-black/10 bg-white px-3 text-[13px]"
               >
                 <option value="member">Member</option>
@@ -183,12 +187,15 @@ export default function TeamPage() {
               <button
                 type="button"
                 onClick={() => void addMember()}
-                disabled={saving}
+                disabled={saving || !overview.can_manage_workspace}
                 className="h-10 rounded-[10px] bg-[#111418] px-4 text-[13px] font-semibold text-white disabled:opacity-70"
               >
                 Add
               </button>
             </div>
+            {!overview.can_manage_workspace ? (
+              <p className="mt-2 text-[11px] text-textSecondary">Only workspace owner/admin can add members.</p>
+            ) : null}
           </Card>
 
           <Card className="border border-black/10 p-4 shadow-none">
@@ -219,12 +226,15 @@ export default function TeamPage() {
               <button
                 type="button"
                 onClick={() => void delegateTask()}
-                disabled={saving || !selectedTaskId || !selectedMemberId}
+                disabled={saving || !selectedTaskId || !selectedMemberId || overview.workspace_role === "member"}
                 className="h-10 rounded-[10px] bg-[#111418] px-4 text-[13px] font-semibold text-white disabled:opacity-70"
               >
                 Delegate
               </button>
             </div>
+            {overview.workspace_role === "member" ? (
+              <p className="mt-2 text-[11px] text-textSecondary">Members can only work on assigned tasks.</p>
+            ) : null}
           </Card>
 
           <div className="grid gap-4 xl:grid-cols-3">

@@ -1,6 +1,7 @@
 import type { Event, Task } from "@chief/types";
 
 export const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+export const DEMO_WORKSPACE_ID = "workspace-demo-personal";
 
 const baseDate = new Date();
 const y = baseDate.getFullYear();
@@ -48,6 +49,7 @@ export const seededTasks: Task[] = [
   {
     id: "22222222-2222-2222-2222-222222222221",
     user_id: DEMO_USER_ID,
+    workspace_id: DEMO_WORKSPACE_ID,
     title: "Clean your desk",
     start_at: null,
     end_at: null,
@@ -61,6 +63,7 @@ export const seededTasks: Task[] = [
   {
     id: "22222222-2222-2222-2222-222222222222",
     user_id: DEMO_USER_ID,
+    workspace_id: DEMO_WORKSPACE_ID,
     title: "Doing workouts",
     start_at: null,
     end_at: null,
@@ -74,6 +77,7 @@ export const seededTasks: Task[] = [
   {
     id: "22222222-2222-2222-2222-222222222223",
     user_id: DEMO_USER_ID,
+    workspace_id: DEMO_WORKSPACE_ID,
     title: "Write weekly brief",
     start_at: `${today}T16:00:00.000Z`,
     end_at: `${today}T16:30:00.000Z`,
@@ -87,6 +91,7 @@ export const seededTasks: Task[] = [
   {
     id: "22222222-2222-2222-2222-222222222224",
     user_id: DEMO_USER_ID,
+    workspace_id: DEMO_WORKSPACE_ID,
     title: "Prepare board update",
     start_at: `${today}T17:00:00.000Z`,
     end_at: `${today}T18:00:00.000Z`,

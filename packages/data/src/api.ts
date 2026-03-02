@@ -35,6 +35,7 @@ function mapTask(task: Record<string, unknown>): Task {
   return {
     id: String(task.id),
     user_id: String(task.user_id),
+    workspace_id: String((task.workspace_id as string | undefined) ?? ""),
     org_id: (task.org_id as string | null | undefined) ?? null,
     title: String(task.title),
     description: (task.description as string | null | undefined) ?? null,
@@ -60,6 +61,7 @@ function mapMeetingToEvent(meeting: Record<string, unknown>): Event {
   return {
     id: String(meeting.id),
     user_id: String(meeting.user_id),
+    workspace_id: (meeting.workspace_id as string | undefined) ?? "",
     org_id: (meeting.org_id as string | null | undefined) ?? null,
     title: String(meeting.title),
     start_at: String(meeting.start_time),

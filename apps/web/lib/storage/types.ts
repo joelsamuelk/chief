@@ -9,7 +9,9 @@ export type CheckinEntityType = "outcome" | "objective" | "key_result" | "initia
 export type SourceKind = "email" | "meeting" | "shared_text" | "manual_note";
 export type ExtractedItemKind = "task" | "decision" | "follow_up" | "risk" | "summary";
 export type ExtractedItemStatus = "pending" | "accepted" | "dismissed" | "snoozed";
-export type MemberRole = "admin" | "executive" | "member";
+export type MemberRole = "owner" | "admin" | "executive" | "member";
+export type WorkspaceType = "personal" | "organization";
+export type WorkspaceRole = "owner" | "admin" | "executive" | "member";
 export type DigestKind = "morning" | "eod";
 
 export interface Profile {
@@ -22,8 +24,25 @@ export interface Profile {
   work_days: string[];
   proactivity_level: ProactivityLevel;
   onboarding_completed: boolean;
+  active_workspace_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  type: WorkspaceType;
+  owner_id: string;
+  created_at: string;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: WorkspaceRole;
+  created_at: string;
 }
 
 export interface Organization {
@@ -45,6 +64,7 @@ export interface Member {
 export interface Source {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   kind: SourceKind;
   provider: string;
@@ -61,6 +81,7 @@ export interface EvidenceRef {
 export interface ExtractedItem {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   source_id: string;
   kind: ExtractedItemKind;
@@ -82,6 +103,7 @@ export interface ExtractedItem {
 export interface Task {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   title: string;
   description: string | null;
@@ -102,6 +124,7 @@ export interface Task {
 export interface Meeting {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   title: string;
   start_time: string;
@@ -115,6 +138,7 @@ export interface Meeting {
 export interface Decision {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   title: string;
   context: string | null;
@@ -130,6 +154,7 @@ export interface Decision {
 
 export interface Outcome {
   id: string;
+  workspace_id: string;
   title: string;
   description: string | null;
   quarter: string;
@@ -140,6 +165,7 @@ export interface Outcome {
 
 export interface Objective {
   id: string;
+  workspace_id: string;
   outcome_id: string;
   title: string;
   description: string | null;
@@ -149,6 +175,7 @@ export interface Objective {
 
 export interface KeyResult {
   id: string;
+  workspace_id: string;
   objective_id: string;
   metric_name: string;
   target_value: number;
@@ -161,6 +188,7 @@ export interface KeyResult {
 
 export interface Initiative {
   id: string;
+  workspace_id: string;
   key_result_id: string;
   title: string;
   description: string | null;
@@ -171,6 +199,7 @@ export interface Initiative {
 
 export interface Checkin {
   id: string;
+  workspace_id: string;
   entity_type: CheckinEntityType;
   entity_id: string;
   status: KeyResultStatus;
@@ -203,6 +232,7 @@ export interface TodayPriority {
 export interface TodaySnapshot {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   date: string;
   top_priorities: TodayPriority[];
@@ -213,6 +243,7 @@ export interface TodaySnapshot {
 export interface DigestRecord {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   kind: DigestKind;
   content: Record<string, unknown>;
@@ -221,6 +252,7 @@ export interface DigestRecord {
 
 export interface StorageContext {
   userId: string;
+  workspaceId: string;
   orgId: string | null;
 }
 
@@ -429,6 +461,18 @@ export interface MemberRepo {
   add(orgId: string, name: string, role: MemberRole): Member;
 }
 
+export interface WorkspaceRepo {
+  listByUser(userId: string): Workspace[];
+  getById(id: string): Workspace | null;
+  create(userId: string, name: string, type: WorkspaceType): Workspace;
+}
+
+export interface WorkspaceMemberRepo {
+  listByWorkspace(workspaceId: string): WorkspaceMember[];
+  add(workspaceId: string, userId: string, role: WorkspaceRole): WorkspaceMember;
+  findByWorkspaceUser(workspaceId: string, userId: string): WorkspaceMember | null;
+}
+
 export interface SnapshotRepo {
   getByDate(context: StorageContext, date: string): TodaySnapshot | null;
   upsert(context: StorageContext, date: string, topPriorities: TodayPriority[], risks: Risk[]): TodaySnapshot;
@@ -488,6 +532,8 @@ export interface StorageSystemRepo {
 
 export interface StorageRepositories {
   profile: ProfileRepo;
+  workspace: WorkspaceRepo;
+  workspaceMember: WorkspaceMemberRepo;
   source: SourceRepo;
   extractedItem: ExtractedItemRepo;
   task: TaskRepo;

@@ -1,6 +1,7 @@
 import { ProfileChip } from "../../../components/profile-chip";
 import { RightRail } from "../../../components/right-rail";
 import { Sidebar } from "../../../components/sidebar";
+import { WorkspaceSwitcher } from "../../../components/workspace-switcher";
 import { getOnboardingState } from "@/lib/services/onboarding";
 import { runDigestScheduler } from "@/lib/services/notifications";
 import Link from "next/link";
@@ -34,8 +35,11 @@ export default function AppProtectedLayout({ children }: { children: ReactNode }
 
         <div className="mt-4 min-w-0 space-y-4 xl:col-start-2 xl:mt-0">
           <div className="hidden items-center justify-between rounded-[20px] border border-black/10 bg-white px-4 py-3 xl:flex">
-            <div className="flex h-11 w-full max-w-[520px] items-center rounded-[14px] border border-black/10 bg-[#F8F8F9] px-3">
-              <span className="text-[14px] text-[#6E6F75]">Search...</span>
+            <div className="flex w-full max-w-[620px] items-center gap-3">
+              <WorkspaceSwitcher />
+              <div className="flex h-11 w-full items-center rounded-[14px] border border-black/10 bg-[#F8F8F9] px-3">
+                <span className="text-[14px] text-[#6E6F75]">Search...</span>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Link

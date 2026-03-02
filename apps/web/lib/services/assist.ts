@@ -1,4 +1,4 @@
-import { getRepos } from "../storage";
+import { getDefaultContext, getRepos } from "../storage";
 import { getMeeting, getMeetings } from "./meetings";
 import { getDecisions } from "./decisions";
 import { executionAssistSummary, generateWeeklyExecutionBrief } from "./execution";
@@ -6,6 +6,7 @@ import { generateEodRecap, generateMorningBrief } from "./notifications";
 import { getTeamOverview } from "./team";
 import { getTasks } from "./tasks";
 import { getTodaySnapshot } from "./today";
+import { getActiveWorkspaceSummary } from "./workspaces";
 
 type AssistIntent =
   | "waiting_on"
@@ -85,6 +86,8 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
   const intent = detectIntent(query);
   const repos = getRepos();
   const references: AssistReference[] = [];
+  const workspaceName = getActiveWorkspaceSummary().name;
+  const scoped = (answer: string) => `${answer} in ${workspaceName}.`;
 
   if (intent === "digest") {
     const lower = query.toLowerCase();
@@ -98,7 +101,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
       references.push({ type: "digest", id: digest.id, title: "EOD recap" });
       return {
         intent,
-        answer: `EOD digest created. Completed: ${completedCount}. Outstanding: ${outstandingCount}. You can view it on Today and Settings.`,
+        answer: scoped(
+          `EOD digest created. Completed: ${completedCount}. Outstanding: ${outstandingCount}. You can view it on Today and Settings`
+        ),
         references
       };
     }
@@ -111,7 +116,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
     references.push({ type: "digest", id: digest.id, title: "Morning brief" });
     return {
       intent,
-      answer: `Morning digest created. Priorities: ${priorities}, risks: ${risks}, queue: ${queueCount}. You can view it on Today and Settings.`,
+      answer: scoped(
+        `Morning digest created. Priorities: ${priorities}, risks: ${risks}, queue: ${queueCount}. You can view it on Today and Settings`
+      ),
       references
     };
   }
@@ -124,7 +131,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `Weekly execution brief: ${brief.outcomes_summary.length} active outcome(s), ${brief.krs_at_risk.length} KR(s) at risk, ${brief.completed_initiatives.length} completed initiative(s), ${brief.major_blockers.length} blocker(s).`,
+      answer: scoped(
+        `Weekly execution brief: ${brief.outcomes_summary.length} active outcome(s), ${brief.krs_at_risk.length} KR(s) at risk, ${brief.completed_initiatives.length} completed initiative(s), ${brief.major_blockers.length} blocker(s)`
+      ),
       references
     };
   }
@@ -137,7 +146,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `Quarter ${summary.quarter}: ${summary.outcome_count} outcome(s), ${summary.key_result_count} KR(s), ${summary.at_risk.length} KR(s) at risk/off-track.`,
+      answer: scoped(
+        `Quarter ${summary.quarter}: ${summary.outcome_count} outcome(s), ${summary.key_result_count} KR(s), ${summary.at_risk.length} KR(s) at risk/off-track`
+      ),
       references
     };
   }
@@ -145,7 +156,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
   if (intent === "execution_at_risk") {
     const summary = executionAssistSummary();
     if (summary.at_risk.length === 0) {
-      return { intent, answer: "No KRs are currently marked at risk.", references: [] };
+      return { intent, answer: scoped("No KRs are currently marked at risk"), references: [] };
     }
 
     summary.at_risk.slice(0, 8).forEach((kr) => {
@@ -154,7 +165,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `KRs at risk: ${summary.at_risk.map((kr) => `${kr.metric_name} (${kr.id})`).join(", ")}`,
+      answer: scoped(`KRs at risk: ${summary.at_risk.map((kr) => `${kr.metric_name} (${kr.id})`).join(", ")}`),
       references
     };
   }
@@ -164,7 +175,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
     const ratioPercent = Math.round(summary.alignment.unaligned_ratio * 100);
     return {
       intent,
-      answer: `${summary.alignment.unaligned_task_count} active task(s) are not linked to an initiative (${ratioPercent}%).`,
+      answer: scoped(
+        `${summary.alignment.unaligned_task_count} active task(s) are not linked to an initiative (${ratioPercent}%)`
+      ),
       references: []
     };
   }
@@ -174,7 +187,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
     const ratioPercent = Math.round(summary.alignment.unaligned_ratio * 100);
     return {
       intent,
-      answer: `Execution health: ${summary.outcome_count} outcome(s), ${summary.key_result_count} KR(s), ${summary.at_risk.length} KR(s) at risk, ${ratioPercent}% unaligned active tasks.`,
+      answer: scoped(
+        `Execution health: ${summary.outcome_count} outcome(s), ${summary.key_result_count} KR(s), ${summary.at_risk.length} KR(s) at risk, ${ratioPercent}% unaligned active tasks`
+      ),
       references: summary.at_risk.slice(0, 6).map((kr) => ({ type: "key_result", id: kr.id, title: kr.metric_name }))
     };
   }
@@ -183,7 +198,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
     const team = getTeamOverview();
     const waiting = team.waiting_on_others;
     if (waiting.length === 0) {
-      return { intent, answer: "Not enough information.", references: [] };
+      return { intent, answer: `Not enough information in ${workspaceName}.`, references: [] };
     }
 
     waiting.slice(0, 5).forEach((task) => {
@@ -192,7 +207,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `You are waiting on ${waiting.length} delegated task(s). Prioritise follow-up on the first two today.`,
+      answer: scoped(`You are waiting on ${waiting.length} delegated task(s). Prioritise follow-up on the first two today`),
       references
     };
   }
@@ -200,14 +215,14 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
   if (intent === "at_risk") {
     const snapshot = getTodaySnapshot();
     if (snapshot.risks.length === 0) {
-      return { intent, answer: "Not enough information.", references: [] };
+      return { intent, answer: `Not enough information in ${workspaceName}.`, references: [] };
     }
     snapshot.risks.slice(0, 5).forEach((risk) => {
       references.push({ type: "risk", id: risk.source_id, title: risk.title });
     });
     return {
       intent,
-      answer: `There are ${snapshot.risks.length} risk signal(s). Start with overdue and delegated-stuck items.`,
+      answer: scoped(`There are ${snapshot.risks.length} risk signal(s). Start with overdue and delegated-stuck items`),
       references
     };
   }
@@ -219,7 +234,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
       snapshot.overdue.length === 0 &&
       snapshot.meetings_today.length === 0
     ) {
-      return { intent, answer: "Not enough information.", references: [] };
+      return { intent, answer: `Not enough information in ${workspaceName}.`, references: [] };
     }
 
     snapshot.top_priorities.forEach((priority) => {
@@ -228,7 +243,9 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `Today has ${snapshot.top_priorities.length} top priorities, ${snapshot.overdue.length} overdue task(s), ${snapshot.meetings_today.length} meeting(s), and ${snapshot.queue_count} queue item(s).`,
+      answer: scoped(
+        `Today has ${snapshot.top_priorities.length} top priorities, ${snapshot.overdue.length} overdue task(s), ${snapshot.meetings_today.length} meeting(s), and ${snapshot.queue_count} queue item(s)`
+      ),
       references
     };
   }
@@ -236,7 +253,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
   if (intent === "prepare_meeting") {
     const meeting = meetingId ? getMeeting(meetingId) : getMeetings("upcoming")[0] ?? null;
     if (!meeting) {
-      return { intent, answer: "Not enough information.", references: [] };
+      return { intent, answer: `Not enough information in ${workspaceName}.`, references: [] };
     }
 
     references.push({ type: "meeting", id: meeting.id, title: meeting.title });
@@ -247,7 +264,7 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
 
     return {
       intent,
-      answer: `Meeting prep: review notes, confirm owner decisions, and cover ${linkedTasks.length} linked task(s).`,
+      answer: scoped(`Meeting prep: review notes, confirm owner decisions, and cover ${linkedTasks.length} linked task(s)`),
       references
     };
   }
@@ -255,20 +272,20 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
   if (intent === "pending_decisions") {
     const pending = getDecisions().filter((decision) => decision.status === "proposed");
     if (pending.length === 0) {
-      return { intent, answer: "Not enough information.", references: [] };
+      return { intent, answer: `Not enough information in ${workspaceName}.`, references: [] };
     }
     pending.slice(0, 6).forEach((decision) => {
       references.push({ type: "decision", id: decision.id, title: decision.title });
     });
     return {
       intent,
-      answer: `There are ${pending.length} pending decision(s). Review ownership and next step for each.`,
+      answer: scoped(`There are ${pending.length} pending decision(s). Review ownership and next step for each`),
       references
     };
   }
 
   const queuePending = repos.extractedItem
-    .list({ userId: "local-user", orgId: null })
+    .list(getDefaultContext())
     .filter((item) => item.status === "pending").length;
 
   const hint = contextHint(appContext);
@@ -276,8 +293,8 @@ export function handleAssistQuery(query: string, meetingId?: string, appContext?
     intent: "unknown",
     answer:
       queuePending > 0
-        ? `Not enough information. ${hint} There are ${queuePending} queue item(s) pending.`
-        : `Not enough information. ${hint}`,
+        ? `Not enough information in ${workspaceName}. ${hint} There are ${queuePending} queue item(s) pending.`
+        : `Not enough information in ${workspaceName}. ${hint}`,
     references: []
   };
 }

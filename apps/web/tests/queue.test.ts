@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getRepos } from "../lib/storage";
+import { getDefaultContext, getRepos } from "../lib/storage";
 import { createSource, processSource } from "../lib/services/sources";
 import { acceptExtractedItem, listQueue } from "../lib/services/queue";
 
@@ -29,6 +29,6 @@ test("accepting extracted task creates a task record", () => {
   assert.equal(accepted?.status, "accepted");
   assert.equal(accepted?.accepted_entity_type, "task");
 
-  const tasks = getRepos().task.list({ userId: "local-user", orgId: null });
+  const tasks = getRepos().task.list(getDefaultContext());
   assert.equal(tasks.some((task) => task.id === accepted?.accepted_entity_id), true);
 });

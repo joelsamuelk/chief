@@ -1,0 +1,74 @@
+import { getDefaultContext, getRepos, LOCAL_USER_ID, setActiveWorkspace } from "../storage";
+import type { WorkspaceRole, WorkspaceType } from "../storage";
+
+function ensureWorkspaceContext() {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const workspace = repos.workspace.getById(context.workspaceId);
+  if (!workspace) {
+    throw new Error("Workspace not found.");
+  }
+  return { repos, context, workspace };
+}
+
+export function listWorkspaces() {
+  const repos = getRepos();
+  const context = getDefaultContext();
+  const workspaces = repos.workspace.listByUser(context.userId);
+  const activeWorkspace = workspaces.find((item) => item.id === context.workspaceId) ?? workspaces[0] ?? null;
+
+  return {
+    active_workspace_id: context.workspaceId,
+    active_workspace: activeWorkspace,
+    workspaces
+  };
+}
+
+export function createWorkspace(input: { name: string; type?: WorkspaceType }) {
+  const repos = getRepos();
+  const name = input.name.trim();
+  if (name.length < 2) {
+    throw new Error("Workspace name is too short.");
+  }
+
+  const workspace = repos.workspace.create(LOCAL_USER_ID, name, input.type ?? "organization");
+  setActiveWorkspace(workspace.id);
+
+  return workspace;
+}
+
+export function switchWorkspace(workspaceId: string) {
+  const repos = getRepos();
+  const workspaces = repos.workspace.listByUser(LOCAL_USER_ID);
+  const target = workspaces.find((item) => item.id === workspaceId);
+  if (!target) {
+    throw new Error("Workspace not found.");
+  }
+  setActiveWorkspace(target.id);
+  return target;
+}
+
+export function listWorkspaceMembers() {
+  const { repos, workspace } = ensureWorkspaceContext();
+  return repos.workspaceMember.listByWorkspace(workspace.id);
+}
+
+export function addWorkspaceMember(input: { user_id: string; role: WorkspaceRole }) {
+  const { repos, context, workspace } = ensureWorkspaceContext();
+  const caller = repos.workspaceMember.findByWorkspaceUser(workspace.id, context.userId);
+  if (!caller || (caller.role !== "owner" && caller.role !== "admin")) {
+    throw new Error("Only owner/admin can manage workspace members.");
+  }
+
+  const userId = input.user_id.trim();
+  if (!userId) {
+    throw new Error("Member user_id is required.");
+  }
+
+  return repos.workspaceMember.add(workspace.id, userId, input.role);
+}
+
+export function getActiveWorkspaceSummary() {
+  const { workspace } = ensureWorkspaceContext();
+  return workspace;
+}

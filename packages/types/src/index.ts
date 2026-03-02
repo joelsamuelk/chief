@@ -12,6 +12,7 @@ export interface Profile {
 export interface Task {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id?: string | null;
   title: string;
   description?: string | null;
@@ -35,6 +36,7 @@ export interface Task {
 export interface Event {
   id: string;
   user_id: string;
+  workspace_id?: string;
   org_id?: string | null;
   title: string;
   start_at: string;
@@ -50,6 +52,7 @@ export type DecisionStatus = "proposed" | "approved" | "implemented";
 export interface Decision {
   id: string;
   user_id: string;
+  workspace_id?: string;
   org_id?: string | null;
   title: string;
   context: string | null;
@@ -101,6 +104,7 @@ export type ProactivityLevel = "reactive" | "quiet" | "strong";
 
 export interface ChiefProfile {
   user_id: string;
+  active_workspace_id?: string | null;
   org_id: string | null;
   role: string | null;
   team_size: number | null;
@@ -119,6 +123,7 @@ export type SourceKind = "email" | "meeting" | "shared_text" | "manual";
 export interface Source {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   kind: SourceKind;
   provider: string;
@@ -142,6 +147,7 @@ export interface EvidenceRef {
 export interface ExtractedItem {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   source_id: string;
   kind: ExtractedItemKind;
@@ -163,6 +169,7 @@ export interface ExtractedItem {
 export interface Meeting {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   title: string;
   start_time: string;
@@ -182,6 +189,7 @@ export interface DecisionTaskLink {
 export interface AiRun {
   id: string;
   user_id: string;
+  workspace_id?: string;
   org_id: string | null;
   source_id: string | null;
   provider: string;
@@ -194,6 +202,7 @@ export interface AiRun {
 export interface TodaySnapshot {
   id: string;
   user_id: string;
+  workspace_id: string;
   org_id: string | null;
   date: string;
   top_priorities: Record<string, unknown>[];

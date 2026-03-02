@@ -1,29 +1,52 @@
 import { getDefaultContext, getRepos } from "../storage";
 import type { MemberRole } from "../storage";
+import { getActiveWorkspaceSummary } from "./workspaces";
 
 export function getOrCreateOrganization(name = "Chief Team") {
-  const repos = getRepos();
-  const context = getDefaultContext();
-  const existing = repos.org.listByOwner(context)[0];
-  if (existing) return existing;
-  return repos.org.create(context, name);
+  const workspace = getActiveWorkspaceSummary();
+  return {
+    id: workspace.id,
+    name: workspace.name || name,
+    owner_id: workspace.owner_id,
+    created_at: workspace.created_at,
+    updated_at: workspace.created_at
+  };
 }
 
 export function addMember(input: { name: string; role: MemberRole }) {
   const repos = getRepos();
-  const org = getOrCreateOrganization();
-  return repos.member.add(org.id, input.name.trim(), input.role);
+  const context = getDefaultContext();
+  const userId = input.name.trim().toLowerCase().replace(/\s+/g, ".");
+  const member = repos.workspaceMember.add(context.workspaceId, userId, input.role);
+  return {
+    id: member.id,
+    org_id: context.workspaceId,
+    name: input.name.trim(),
+    role: member.role,
+    created_at: member.created_at
+  };
 }
 
 export function listMembers() {
   const repos = getRepos();
-  const org = getOrCreateOrganization();
-  return repos.member.list(org.id);
+  const context = getDefaultContext();
+  const workspace = getActiveWorkspaceSummary();
+  return repos.workspaceMember.listByWorkspace(context.workspaceId).map((member) => {
+    const name = member.user_id === context.userId ? "You" : member.user_id.replace(/[._-]/g, " ");
+    return {
+      id: member.id,
+      org_id: workspace.id,
+      name,
+      role: member.role,
+      created_at: member.created_at
+    };
+  });
 }
 
 export function getTeamOverview() {
   const repos = getRepos();
   const context = getDefaultContext();
+  const currentMember = repos.workspaceMember.findByWorkspaceUser(context.workspaceId, context.userId);
   const delegated = repos
     .task
     .list(context)
@@ -49,6 +72,8 @@ export function getTeamOverview() {
 
   return {
     organization: getOrCreateOrganization(),
+    workspace_role: currentMember?.role ?? "owner",
+    can_manage_workspace: currentMember ? currentMember.role === "owner" || currentMember.role === "admin" : true,
     members,
     delegated_by_me: delegated,
     waiting_on_others: waitingOnOthers,
